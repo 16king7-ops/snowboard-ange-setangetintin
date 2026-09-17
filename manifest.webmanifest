@@ -1,0 +1,31 @@
+{
+  "name": "スノボ セッティング（CRAFT 155）",
+  "short_name": "スノボ設定",
+  "description": "バインディングのセッティング・取り付け手順・滑る日のチェックと記録",
+  "lang": "ja",
+  "start_url": "setup.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#edf2f6",
+  "theme_color": "#14202b",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

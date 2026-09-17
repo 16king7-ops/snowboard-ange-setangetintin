@@ -1,0 +1,20 @@
+# 公開するのはアプリのファイルだけ（作業用・ゴミ箱・仕様メモ・動画ダウンロード用は含めない）
+/*
+!/.gitignore
+!/.nojekyll
+!/index.html
+!/app.js
+!/lessons.js
+!/reference.js
+!/training.js
+!/styles.css
+!/setup.html
+!/setup.css
+!/setup.js
+!/setup-data.js
+!/setup-content.js
+!/setup-diagrams.js
+!/manifest.webmanifest
+!/sw.js
+!/icons/
+!/vendor/

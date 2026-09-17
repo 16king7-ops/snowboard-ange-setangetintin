@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRAFT 155 バインディング セッティング</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Dela+Gothic+One&family=JetBrains+Mono:wght@500;700&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="setup.css" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#14202b" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="スノボ設定" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+</head>
+<body class="su-page">
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">❄</span>
+      <h1>バインディング セッティング</h1>
+    </div>
+    <div class="header-controls">
+      <button class="btn-ghost small" id="print-btn">取り付けシートを印刷</button>
+      <a class="btn-ghost small" href="index.html">フォーム分析へ</a>
+    </div>
+  </header>
+
+  <main class="su">
+    <section class="su-hero" aria-labelledby="hero-title">
+      <div class="hero-head">
+        <h2 class="hero-title" id="hero-title">いまのセッティング</h2>
+        <div class="seg" role="group" aria-label="プリセット">
+          <button data-preset="beginner">S字練習</button>
+          <button data-preset="runtori">ラントリ</button>
+          <button data-preset="gratri">グラトリ</button>
+        </div>
+      </div>
+      <p id="preset-when" class="hint"></p>
+      <div class="spec" id="hero-spec"></div>
+      <div class="hero-mount" id="hero-mount"></div>
+      <p id="hero-mounted" class="hint"></p>
+      <div class="hero-actions">
+        <button class="btn-ghost small" data-goto="why">なぜこの設定？</button>
+        <button class="btn-ghost small" data-goto="mount">床テストと取り付け手順</button>
+        <button class="btn-ghost small" id="mark-mounted">この設定で板に取り付けた</button>
+        <button class="btn-ghost small" data-goto="log">滑った日の記録</button>
+      </div>
+      <p class="legend-line">根拠の強さ:
+        <span><span class="tag tag-a">A</span> 物理・幾何<span class="sp-hide">で導ける</span></span>
+        <span><span class="tag tag-b">B</span> 業界の目安<span class="sp-hide">（物理的な必然ではない）</span></span>
+        <span><span class="tag tag-c">C</span> 推定<span class="sp-hide">・未確定（実物で確認）</span></span>
+      </p>
+    </section>
+
+    <nav class="su-tabs" role="tablist" aria-label="項目">
+      <button role="tab" data-tab="setup" aria-selected="true">設定と図</button>
+      <button role="tab" data-tab="why" aria-selected="false">理由</button>
+      <button role="tab" data-tab="mount" aria-selected="false">床テスト・取り付け</button>
+      <button role="tab" data-tab="gear" aria-selected="false">道具</button>
+      <button role="tab" data-tab="ride" aria-selected="false">滑る日・調整</button>
+      <button role="tab" data-tab="log" aria-selected="false">記録</button>
+      <button role="tab" data-tab="grow" aria-selected="false">上達</button>
+      <button role="tab" data-tab="care" aria-selected="false">準備・手入れ</button>
+      <button role="tab" data-tab="words" aria-selected="false">用語・FAQ</button>
+    </nav>
+
+    <!-- 設定と図 -->
+    <div class="su-tab" data-panel="setup">
+      <div class="setup-grid">
+        <aside class="su-panel su-controls" aria-label="位置と角度の調整">
+          <h2>足の位置と角度</h2>
+          <div class="ctl-foot">
+            <b><span class="swatch sw-front"></span>前足</b>
+            <label class="su-range">つま先の角度（プラス＝ノーズ側） <output id="ft-angle-out"></output>
+              <span class="stepper"><button type="button" data-step="-1" aria-label="前足の角度を3°減らす">−</button><input type="range" min="-30" max="45" step="3" data-k="ft.angle"><button type="button" data-step="1" aria-label="前足の角度を3°増やす">＋</button></span></label>
+            <label class="su-range">ネジ穴の位置（1穴＝2cm） <output id="ft-shift-out"></output>
+              <span class="stepper"><button type="button" data-step="-1" aria-label="前足を内側へ1穴">−</button><input type="range" step="1" data-k="ft.shift" class="shift"><button type="button" data-step="1" aria-label="前足を外側へ1穴">＋</button></span></label>
+            <label class="su-range">ディスクの溝で微調整（推定±8mm） <output id="ft-slot-out"></output>
+              <span class="stepper"><button type="button" data-step="-1" aria-label="前足の溝を内側へ1mm">−</button><input type="range" step="1" data-k="ft.slot" class="slot"><button type="button" data-step="1" aria-label="前足の溝を外側へ1mm">＋</button></span></label>
+          </div>
+          <div class="ctl-foot back">
+            <b><span class="swatch sw-back"></span>後足</b>
+            <label class="su-range">つま先の角度（マイナス＝テール側） <output id="bk-angle-out"></output>
+              <span class="stepper"><button type="button" data-step="-1" aria-label="後足の角度を3°減らす">−</button><input type="range" min="-30" max="45" step="3" data-k="bk.angle"><button type="button" data-step="1" aria-label="後足の角度を3°増やす">＋</button></span></label>
+            <label class="su-range">ネジ穴の位置（1穴＝2cm） <output id="bk-shift-out"></output>
+              <span class="stepper"><button type="button" data-step="-1" aria-label="後足を内側へ1穴">−</button><input type="range" step="1" data-k="bk.shift" class="shift"><button type="button" data-step="1" aria-label="後足を外側へ1穴">＋</button></span></label>
+            <label class="su-range">ディスクの溝で微調整（推定±8mm） <output id="bk-slot-out"></output>
+              <span class="stepper"><button type="button" data-step="-1" aria-label="後足の溝を内側へ1mm">−</button><input type="range" step="1" data-k="bk.slot" class="slot"><button type="button" data-step="1" aria-label="後足の溝を外側へ1mm">＋</button></span></label>
+          </div>
+          <label class="su-range">前傾（ハイバックの倒し具合。段数は実物で確認）
+            <select id="lean">
+              <option value="0">一番弱く</option>
+              <option value="1">1段強く</option>
+              <option value="2">2段強く</option>
+              <option value="3">3段強く</option>
+            </select>
+          </label>
+          <div id="warnings"></div>
+
+          <h2>板とライダー</h2>
+          <select id="board" aria-label="板"></select>
+          <div class="su-grid">
+            <label>身長 cm<input type="number" step="1" data-k="rd.height"></label>
+            <label>体重 kg<input type="number" step="1" data-k="rd.weight"></label>
+          </div>
+          <label class="su-range">スタンス
+            <select id="regular"><option value="1">レギュラー（左足が前）</option><option value="0">グーフィー（右足が前）</option></select>
+          </label>
+          <details>
+            <summary>左右どちらの足が前か迷ったら <span class="tag tag-c">C</span></summary>
+            <p>決め方には「ボールを蹴る足を後ろ」「押されて出た足を前」など結論が逆になる説が並んでいて、確立した判定法はない。次の違和感があれば、緩斜面で逆向きを試す価値がある。</p>
+            <ul class="guide-list">
+              <li>進行方向（谷側）を見るのに、首をかなり無理にひねる必要がある</li>
+              <li>トゥサイドとヒールサイドの上達の差が極端に大きい</li>
+              <li>何も考えずに立つと、逆向きになっている</li>
+            </ul>
+            <div data-fig="g-regular-goofy"></div>
+        <p class="hint">逆向きにすると前後の足が入れ替わり、図のノーズの向きも反対になる。</p>
+          </details>
+          <details>
+            <summary>板の数値を編集（年式違い・別の板）</summary>
+            <div class="su-grid">
+              <label>全長 cm<input type="number" step="0.1" data-k="bd.totalLength" data-mul="10"></label>
+              <label>有効エッジ cm<input type="number" step="0.5" data-k="bd.effectiveEdge" data-mul="10"></label>
+              <label>ノーズ幅 mm<input type="number" step="1" data-k="bd.noseTailWidth"></label>
+              <label>ウエスト幅 mm<input type="number" step="1" data-k="bd.waistWidth"></label>
+              <label>サイドカット m<input type="number" step="0.1" data-k="bd.sidecutRadius" data-mul="1000"></label>
+              <label>基準スタンス cm<input type="number" step="0.5" data-k="bd.refStance" data-mul="10"></label>
+              <label>セットバック cm<input type="number" step="0.5" data-k="bd.setback" data-mul="10"></label>
+              <label>1列の穴の数<input type="number" step="2" min="3" max="15" data-k="bd.holesPerRow"></label>
+            </div>
+          </details>
+          <details>
+            <summary>実物で測る値 <span class="tag tag-c">C</span></summary>
+            <div class="su-grid">
+              <label>先端までの長さの差 mm（ノーズ−テール）<input type="number" step="1" data-k="bd.noseDiff"></label>
+              <label>先端の高さ mm<input type="number" step="5" data-k="es.tipRise"></label>
+              <label>キャンバー浮き mm<input type="number" step="1" data-k="es.camberHeight"></label>
+              <label>ブーツ外寸 cm<input type="number" step="0.1" data-k="es.bootLength" data-mul="10"></label>
+              <label>つま先底の高さ mm<input type="number" step="1" data-k="es.soleHeight"></label>
+            </div>
+          </details>
+          <div class="ctl-actions"><button class="btn-ghost small" id="reset-all">初期値に戻す</button></div>
+          <p class="hint">変更はこのブラウザに自動で保存されます。</p>
+        </aside>
+
+        <div class="setup-figs">
+          <section class="su-panel">
+            <h2>上から見た図 <span class="hint">かかと側のエッジを手前にして、上から見た向き（板に立って足元を見下ろした向き）</span></h2>
+            <div class="svg-box"><svg id="top" role="img" aria-label="板を上から見た図"></svg></div>
+            <p class="scroll-hint">← 横にスクロールできます →</p>
+            <div id="top-read" class="read"></div>
+            <details>
+              <summary>図の見方</summary>
+              <ul class="guide-list">
+                <li>レギュラー（左足が前）はノーズが左、グーフィーは右。</li>
+                <li>青が前足、オレンジが後足。矢印はつま先の向きで、角度のプラスは「つま先がノーズ側」。</li>
+                <li>黄色の丸がネジを入れる穴。下の黄色いメジャーの数字は、各先端からその穴の中心までの距離（取り付けでそのまま測れる）。</li>
+                <li>実線の輪郭は公表値から計算した形、破線は推定した形。</li>
+              </ul>
+            </details>
+          </section>
+
+          <section class="su-panel">
+            <h2>取り付け詳細 <span class="hint">使うネジ穴・ディスク目盛り・膝の力の向き。赤い点はブーツが板からはみ出している部分</span></h2>
+            <div class="su-two">
+              <div><p id="detail-ft-read" class="read key"></p><div class="svg-box"><svg id="detail-ft" role="img" aria-label="前足の取り付け詳細図"></svg></div></div>
+              <div><p id="detail-bk-read" class="read key"></p><div class="svg-box"><svg id="detail-bk" role="img" aria-label="後足の取り付け詳細図"></svg></div></div>
+            </div>
+          </section>
+
+          <section class="su-panel">
+            <h2>横から見た図 <span class="hint">高さ方向は拡大表示</span></h2>
+            <div class="svg-box"><svg id="side" role="img" aria-label="板を横から見た図"></svg></div>
+            <p class="scroll-hint">← 横にスクロールできます →</p>
+            <p id="side-read" class="read"></p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- 理由 -->
+    <div class="su-tab reading" data-panel="why" hidden>
+      <section class="su-panel">
+        <h2>なぜこの設定？ 変えたらどうなる？</h2>
+        <div id="preset-card"></div>
+      </section>
+      <details class="su-panel fold">
+        <summary>3つのプリセットを並べて比べる</summary>
+        <div id="preset-compare"></div>
+      </details>
+      <section class="su-panel">
+        <h2>角度の数字は4つの見方で読む <span class="hint">今の設定の値</span></h2>
+        <div id="angle-read"></div>
+      </section>
+      <section class="su-panel">
+        <h2>スタンス幅の決め方 <span class="hint">体重・身長・板の特徴から</span></h2>
+        <div id="stance-guide"></div>
+      </section>
+      <section class="su-panel">
+        <h2>アングルとスタイルの目安 <span class="tag tag-b">B</span></h2>
+        <div class="svg-box"><svg id="map" role="img" aria-label="アングルとスタイルの目安マップ"></svg></div>
+        <p class="scroll-hint">← 横にスクロールできます →</p>
+        <details><summary>表で見る</summary><div id="style-table"></div></details>
+      </section>
+      <section class="su-panel">
+        <h2>角度とブーツのはみ出し（ドラグ）</h2>
+        <p class="read">深く傾けたとき、板からはみ出したブーツのつま先やかかとが雪に触れると、板がテコで持ち上げられてエッジが抜ける <span class="tag tag-a">A</span>。足の角度をつけるほどブーツが斜めになり、はみ出しは減る <span class="tag tag-a">A</span>。はみ出しの目安は各エッジ1〜2cm以内 <span class="tag tag-b">B</span>。</p>
+        <div data-fig="drag-touch"></div>
+        <div id="drag-table"></div>
+        <p class="hint">今の前足の位置で計算。ブーツ外寸と底の高さは推定 <span class="tag tag-c">C</span>。エッジ角30〜45°のターンなら、どの角度でも触れない。</p>
+      </section>
+      <details class="su-panel fold">
+        <summary>エッジ角とターンの物理（計算で見る） <span class="tag tag-a">A</span></summary>
+        <p class="hint">板を傾けた角度から、ターンの大きさ・必要なたわみ・速度・板にかかる力を理想化して計算します。前傾の説明は「道具」タブの表にあります。</p>
+        <label class="su-range">エッジ角 <output id="edge-out"></output><input type="range" id="edge" min="5" max="70" step="1" value="30"></label>
+        <div class="su-two">
+          <div class="svg-box"><svg id="carve" role="img" aria-label="ターン軌跡の図"></svg></div>
+          <p id="carve-read" class="read"></p>
+        </div>
+      </details>
+    </div>
+
+    <!-- 取り付け -->
+    <div class="su-tab reading" data-panel="mount" hidden>
+      <section class="su-panel">
+        <h2>セッティングを決める順番</h2>
+        <ol class="steps">
+          <li><b>向きを決める:</b> レギュラー（左足が前）かグーフィー（右足が前）。</li>
+          <li><b>目的でプリセットを選ぶ:</b> S字練習 / ラントリ / グラトリ。理由は「理由」タブ。</li>
+          <li><b>体に合わせる:</b> 下の床テストで、膝の向き・かかと・腰を確認し、角度と幅を1つずつ直す。</li>
+          <li><b>取り付ける:</b> 下の手順。ネジ穴・ディスクの溝・つま先とかかとのバランス。</li>
+          <li><b>バインディングとブーツを合わせる:</b> トゥランプ・ストラップ・前傾・BOA（「道具」タブ）。</li>
+          <li><b>滑って直す:</b> 1回に1か所。変えたら「記録」タブに残す。</li>
+        </ol>
+        <p class="callout">迷ったら「体に合うこと（しゃがんだとき膝がつま先の方向に出る）」を最優先。次に目的、最後に好み。</p>
+        <div data-fig="decide-order"></div>
+      </section>
+      <section class="su-panel">
+        <h2>床テスト（取り付ける前に） <span class="tag tag-b">B</span></h2>
+        <p class="read">膝はつま先と同じ方向に曲げるのが、膝をねじらない基本の形。ビンディングでつま先の向きを固定しているのに、股関節がその方向に開かないと、しゃがんだ瞬間に膝が内側に入ってねじれやすい。これが「疲れる」「板を踏めない」「膝が痛い」の原因になりやすい。</p>
+        <div id="floor-tape"></div>
+        <div data-fig="floor-test"></div>
+        <ol class="steps">
+          <li>床にマスキングテープで、上の間隔と角度の足形を貼る。</li>
+          <li>足形の上に立ち、深くしゃがむ。つま先側・かかと側へ体重を移してみる。</li>
+          <li>下の3つを確認する。NGがあれば、1つだけ直してもう一度しゃがむ。</li>
+        </ol>
+        <div class="table-wrap">
+          <table class="su-table">
+            <tr><th>確認すること</th><th>NGのとき</th><th>調整</th></tr>
+            <tr data-fig="knee-toe"><td>膝がつま先と同じ方向に出ているか</td><td>膝が内側に入る</td><td>その足の角度を0°側へ3°戻す</td></tr>
+            <tr data-fig="squat-heel"><td>かかとが浮かないか</td><td>浮く（足首が硬い / 幅が広すぎ）</td><td>幅を2cm狭く（1穴内側）。取り付けたあと滑っていて浮くなら、前傾を弱くするのも試す</td></tr>
+            <tr data-fig="hip-twist"><td>腰がねじれてしんどくないか</td><td>しんどい（後足のマイナスが深すぎ）</td><td>後足を+3°（マイナスを浅く）</td></tr>
+          </table>
+        </div>
+        <p class="hint">足首が硬い・股関節が開きにくいと感じたら、角度を変えるだけでなく、フォーム分析アプリの「<a href="index.html#training">🏋️ オフトレ</a>」（足首ストレッチなど）も続けると体が合わせやすくなる <span class="tag tag-b">B</span>。</p>
+      </section>
+      <section class="su-panel">
+        <h2>取り付け手順 <span class="hint">今の設定の値が入る</span></h2>
+        <div id="mount-steps"></div>
+      </section>
+    </div>
+
+    <!-- 道具 -->
+    <div class="su-tab reading" data-panel="gear" hidden>
+      <section class="su-panel">
+        <h2>SALOMON RHYTHM（バインディング）</h2>
+        <dl class="why">
+          <dt>位置づけ</dt><dd>上達を助けるための、柔らかめで扱いやすいモデル（公式の表記は「ソフト」、海外の販売店は「ミディアムソフト」）。上位モデルにあるヒールカップの構造「Shadow Fit」は付いていない。</dd>
+          <dt>非対称の形</dt><dd>ハイバックとベースプレートが左右非対称。足の外側はしっかり支え、内側はしなるので、局所的に当たって痛くなりにくい（メーカー説明）。<div data-fig="rhythm-asym"></div></dd>
+          <dt>ハイバック</dt><dd>最初から12°ひねった形。後から回して向きを変えられるかは公表情報では確認できないので、実物で確認する <span class="tag tag-c">C</span>。<div data-fig="highback-rot"></div></dd>
+          <dt>フットベッド</dt><dd>2.5°の傾き（カント）付きのEVAクッション。メーカーは「弾きとエッジコントロールを高める」と説明。一般には、脚を開いて立つ形に足裏を合わせて膝の負担を減らすための構造 <span class="tag tag-b">B</span>。<div data-fig="cant"></div></dd>
+          <dt>ベース</dt><dd>コンポジット（樹脂系）。アルミより快適で耐久性が高いというメーカー説明。</dd>
+          <dt>ディスク</dt><dd>ユニバーサルディスク。4x4・2x4・3D・チャンネルの板に取り付けられる。目盛りは3°刻みが一般的だが、RHYTHMの刻みは公表情報にないので実物で確認 <span class="tag tag-c">C</span>。<div data-fig="disc-universal"></div></dd>
+          <dt>サイズ</dt><dd>サロモン日本公式ではMが26.5〜27.5cm（年式や国で表が違い、海外の販売店はUS6.5〜10）。27.5cmは日本公式の表では上限なので、ブーツがきちんと収まるか、ストラップの長さに余裕があるかを確認する <span class="tag tag-b">B</span>。<div data-fig="size-m"></div></dd>
+        </dl>
+      </section>
+      <section class="su-panel">
+        <h2>RHYTHMで調整できる所</h2>
+        <div class="table-wrap">
+          <table class="su-table">
+            <tr><th>部位</th><th>どう変える</th><th>何が変わる</th><th>目安・おすすめ</th></tr>
+            <tr data-fig="disc-adjust"><td>ディスク（角度・位置）</td><td>ネジを外して回す / 穴を選ぶ / 溝でずらす</td><td>足の角度・スタンス幅・中心の位置</td><td>プリセットの値。変えるときは3°か1穴ずつ</td></tr>
+            <tr data-fig="forward-lean"><td>前傾（ハイバックの倒し具合）</td><td>工具なし（何段階あるかは実物で確認 <span class="tag tag-c">C</span>）</td><td>強い: ヒールサイドの反応が速い（慣れないと窮屈） / 弱い: 楽で疲れにくく、プレスで脚を動かしやすい</td><td>S字練習・グラトリは一番弱く、ラントリは1段強く <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="toe-ramp"><td>トゥランプ（つま先の下の台）</td><td>前後にずらす（工具なし）</td><td>ブーツのつま先の下が支えられ、トゥサイドに力が伝わりやすくなる</td><td>ブーツの底の長さに合わせ、つま先の下にすき間ができない位置 <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="ankle-strap"><td>アンクルストラップ</td><td>長さ（工具なし・MicroMaxで微調整）。位置を変えられるかは実物で確認 <span class="tag tag-c">C</span></td><td>足首のホールド。ずれるとかかとが浮く・甲が痛い</td><td>締めたときにパッドの中心が足首の前に来る。締まり切らなければ短く、ラチェットに届かなければ長く <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="toe-strap"><td>トゥストラップ</td><td>長さ（工具なし・MicroMaxで微調整）</td><td>つま先側のホールド</td><td>つま先に被せる形。つま先の上側に被さり、甲に乗らない長さ <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="highback-parallel"><td>ハイバックの向き</td><td>回せるかは実物で確認 <span class="tag tag-c">C</span></td><td>ヒールサイドへの力の伝わり方</td><td>回せる場合、板のかかと側エッジと平行に近づけると反応が直接的 <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="cant"><td>フットベッドの傾き・ハイバックの形</td><td>変えられない（固定）</td><td>—</td><td>床テストは、この傾きも込みで行う</td></tr>
+          </table>
+        </div>
+      </section>
+      <section class="su-panel">
+        <h2>SALOMON FACTION BOA（ブーツ）</h2>
+        <dl class="why">
+          <dt>硬さ</dt><dd>柔らかめ（販売店の説明は「ソフトフレックス」）。足首を曲げやすく、プレスや低速のターンで扱いやすい。代わりに高速では支えが弱い <span class="tag tag-b">B</span>。<div data-fig="boot-flex"></div></dd>
+          <dt>BOA（ダイヤル1つ）</dt><dd>H4 Coiler。ダイヤルを押し込んで回すと締まる。ダイヤル1つでブーツ全体を締める方式なので、足首と甲で締め具合を分けられない。<div data-fig="boa-dial"></div></dd>
+          <dt>ライナー</dt><dd>熱成形に対応したUltralonフォーム（販売店の説明）。ライナーを温めて履き、滑る姿勢で形をなじませる。サイズが合わないのを直すものではないので、初めてならショップに頼む <span class="tag tag-b">B</span>。<div data-fig="heat-mold"></div></dd>
+          <dt>ソール</dt><dd>D-Light（EVA）。軽くて薄く、溝のパターンでグリップと衝撃吸収（メーカー説明）。FTR構造で外寸が約10%コンパクトなので、はみ出しが少なくなる方向。<div data-fig="ftr-compact"></div></dd>
+        </dl>
+      </section>
+      <div id="gear-extra"></div>
+    </div>
+
+    <!-- 滑る日・調整 -->
+    <div class="su-tab reading" data-panel="ride" hidden>
+      <section class="su-panel">
+        <h2>困ったとき・変えたいときの調整表 <span class="hint">「まず」を試し、変わらなければ「次に」。1回に1か所だけ。幅は片足を1穴（2cm）ずつ動かす</span></h2>
+        <div class="table-wrap">
+          <table class="su-table">
+            <tr><th>症状・やりたいこと</th><th>まず</th><th>次に</th><th>理由</th></tr>
+            <tr class="group"><th colspan="4">困っている</th></tr>
+            <tr data-fig="fix-narrow"><td>ターンの切り返しが重い</td><td>幅を2cm狭く（片足を内側へ1穴）</td><td>前足+3°</td><td>足が内側に寄って板を回しやすく、膝も動かしやすい <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="squat-heel"><td>しゃがむとかかとが浮く</td><td>幅を2cm狭く</td><td>前傾を弱く</td><td>足首が硬いと、広い幅や強い前傾では足首が曲がり切らず、かかとが浮きやすいと考えられる <span class="tag tag-c">C</span></td></tr>
+            <tr data-fig="knee-toe"><td>膝が内側に入る</td><td>その足の角度を0°側へ3°戻す</td><td>床テストでやり直す</td><td>膝をつま先と同じ向きに曲げると、膝をねじらずに済む <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="facing"><td>進行方向が見にくい</td><td>前足+3°</td><td>後足+3°（マイナスを浅く）</td><td>体（骨盤）がノーズ側を向く <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="hip-twist"><td>腰がねじれてしんどい</td><td>後足+3°（マイナスを浅く）</td><td>—</td><td>前後の開きが減り、股関節の負担が減る <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="heel-lean"><td>ヒールサイドで踏ん張れない</td><td>前傾を1段強く</td><td>ハイバックを板のエッジと平行に（回せる場合）</td><td>すねを倒した力がすぐエッジに伝わる <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="drag-touch"><td>深く傾けると急にエッジが抜ける</td><td>ブーツのはみ出しを実測する</td><td>足の角度を増やす / 1〜2cmを超えるならワイド板</td><td>ブーツが雪に当たって板が持ち上がる（ドラグ） <span class="tag tag-a">A</span></td></tr>
+            <tr data-fig="heel-lift"><td>かかとが浮く・足が痛い</td><td>BOAとアンクルストラップの位置</td><td>ライナーの熱成形（ショップ）</td><td>足とブーツ、ブーツとバインディングのすき間をなくす <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="chatter"><td>高速でバタつく</td><td>板をフラットにしたまま速度を出さず、エッジに乗って滑る</td><td>前傾を1段強く / 幅を2cm広く</td><td>主な原因は板の硬さと振動の吸収（板の特性）と、板がフラットなまま速度が出ていること。セッティングで変わる量は小さい <span class="tag tag-b">B</span></td></tr>
+            <tr class="group"><th colspan="4">こうしたい</th></tr>
+            <tr data-fig="switch-mirror"><td>スイッチ（逆向き）を楽に</td><td>後足−3°（マイナスを深く）</td><td>前足−3°（左右対称に近づける）</td><td>逆向きのときの角度が、普通の向きに近づく <span class="tag tag-a">A</span></td></tr>
+            <tr data-fig="toe-ramp"><td>トゥサイドの反応を良く</td><td>トゥランプをブーツに合わせる</td><td>トゥストラップの位置</td><td>つま先の下と上から力が伝わる <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="press-lever"><td>プレス・バターをしやすく</td><td>前傾を弱く</td><td>幅を2cm広く / 角度を寝かせる（±9°）</td><td>脚を動かしやすく、ノーズ/テールへのテコが長い <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="ollie-lever"><td>オーリー・弾きを強く</td><td>幅を2cm広く</td><td>—</td><td>テコが長くなり、足がキャンバーに乗る <span class="tag tag-b">B</span><span class="tag tag-c">C</span></td></tr>
+            <tr data-fig="forward-lean"><td>高速で安定させたい</td><td>前傾を1段強く</td><td>幅を2cm広く</td><td>ヒールの反応が速く、前後に強くなる <span class="tag tag-b">B</span></td></tr>
+            <tr data-fig="powder-setback"><td>パウダーで浮かせたい</td><td>前足を内側へ1穴・後足を外側へ1穴</td><td>—</td><td>幅は同じまま中心が2cmテール寄りになり、ノーズが浮きやすい。スイッチを使う日は元に戻す <span class="tag tag-b">B</span></td></tr>
+          </table>
+        </div>
+      </section>
+      <section class="su-panel">
+        <h2>滑る日のチェックリスト <span class="hint">チェックはこのブラウザに保存されます。次の日は「チェックを外す」でリセット</span></h2>
+        <div id="ride-checks"></div>
+      </section>
+      <div id="ride-sections"></div>
+    </div>
+
+    <!-- 記録 -->
+    <div class="su-tab reading" data-panel="log" hidden>
+      <section class="su-panel">
+        <h2>調整のルール</h2>
+        <ul class="guide-list">
+          <li><b>1回に変えるのは1か所だけ。</b>2か所同時に変えると、どちらが効いたか分からなくなる。</li>
+          <li><b>変える単位:</b> 角度は3°（ディスクの1目盛り）、幅は2cm（片足を1穴）、前傾は1段。</li>
+          <li><b>進める順番（目安）:</b> S字練習 → スイッチを始めたら後足−9° → プレス・オーリーを始めたら幅54cm → 56cm → スピードを上げてヒールサイドが抜けるなら前傾1段（＝ラントリ）。グラトリはその後。いつ進むかは「上達」タブ。</li>
+          <li><b>スマホでも使える:</b> 公開したページをスマホで開き、ホーム画面に追加すると、電波がない所でも開ける。PCとのデータの受け渡しはこのタブの下の「PCとスマホでデータを共有」。</li>
+          <li><b>判断は同じ条件で:</b> 雪の状態や疲れで感覚は変わるので、変えた直後の1本で決めず、何本か滑ってから記録する。</li>
+        </ul>
+      </section>
+      <section class="su-panel">
+        <h2>滑った日の記録をつける</h2>
+        <form id="log-form" class="log-form">
+          <p id="log-diff" class="callout"></p>
+          <div class="row">
+            <label>日付<input type="date" id="log-date" required></label>
+            <label>雪の状態
+              <select id="log-snow">
+                <option value="">—</option>
+                <option>硬い（アイスバーン）</option>
+                <option>普通（圧雪）</option>
+                <option>柔らかい</option>
+                <option>パウダー</option>
+                <option>春の重い雪</option>
+              </select>
+            </label>
+            <label>手応え
+              <select id="log-feel">
+                <option value="first">初めての設定</option>
+                <option value="good">良くなった</option>
+                <option value="same" selected>変わらない</option>
+                <option value="bad">悪くなった</option>
+              </select>
+            </label>
+          </div>
+          <label>場所<input type="text" id="log-place" placeholder="例: スキー場名・中斜面"></label>
+          <label>メモ（どう感じたか・次に試すこと）<textarea id="log-note" rows="3"></textarea></label>
+          <div><button class="btn-accent" type="submit">いまのセッティングで記録する</button></div>
+        </form>
+      </section>
+      <section class="su-panel">
+        <h2>これまでの記録 <span class="hint">新しい順。記録はこの端末のブラウザに保存されます</span></h2>
+        <ol id="log-list" class="log-list"></ol>
+      </section>
+      <section class="su-panel" id="sync">
+        <h2>PCとスマホでデータを共有 <span class="hint">設定・記録・チェック・「板に取り付けた設定」</span></h2>
+        <p class="read">自動では同期しません。変えたほうの端末で「送る」を押し、もう片方で取り込みます。記録は両方を合わせ、設定とチェックは送った側に置き換わります。</p>
+        <ol class="steps">
+          <li>送る側で「送るリンクを作る」を押す。</li>
+          <li>PCなら、出てきたQRコードをスマホのカメラで読む。スマホなら「リンクを共有」でLINEやメールに送る。</li>
+          <li>受け取った端末でリンクを開き、「取り込む」を確認する。</li>
+        </ol>
+        <p><button class="btn-accent" type="button" id="sync-make">送るリンクを作る</button></p>
+        <div id="sync-out"></div>
+        <details>
+          <summary>ホーム画面のアプリで開いている場合（iPhone）</summary>
+          <p class="read">iPhoneでは、ホーム画面に追加したアプリとSafariで保存場所が別になります。QRコードやリンクを開くとSafariに取り込まれるので、アプリに入れたいときはリンクをコピーして、ここに貼り付けてください。</p>
+          <form id="sync-paste" class="log-form">
+            <label>受け取ったリンク<input type="text" id="sync-link" placeholder="https://…#import=…" autocomplete="off"></label>
+            <div><button class="btn-ghost" type="submit">貼り付けたリンクから取り込む</button></div>
+          </form>
+        </details>
+      </section>
+    </div>
+
+    <!-- 上達 -->
+    <div class="su-tab reading" data-panel="grow" hidden>
+      <div id="grow"></div>
+    </div>
+
+    <!-- 準備・手入れ -->
+    <div class="su-tab reading" data-panel="care" hidden>
+      <div id="care"></div>
+    </div>
+
+    <!-- 用語・FAQ -->
+    <div class="su-tab reading" data-panel="words" hidden>
+      <section class="su-panel">
+        <h2>用語集</h2>
+        <input type="search" id="glossary-filter" placeholder="用語を探す（例: キャンバー）" aria-label="用語を探す">
+        <dl id="glossary" class="glossary"></dl>
+      </section>
+      <section class="su-panel">
+        <h2>よくある質問</h2>
+        <div id="faq"></div>
+      </section>
+    </div>
+
+    <details class="su-panel fold" id="sources">
+      <summary>出典</summary>
+      <ul class="guide-list sources">
+        <li>板のスペック（2025年式）: <a href="https://www.murasaki.jp/Form/Product/ProductDetail.aspx?pid=010101llsalom012&amp;bid=snow">ムラサキスポーツ</a> / <a href="https://www.melbournesnowboard.com.au/pages/salomon-craft-size-chart">Melbourne Snowboard Centre</a>。全長・前後の長さ・穴の位置はユーザーの実測</li>
+        <li>板のスペック（23-24）: <a href="https://www.supersports.com/ja-jp/victoria/products/D-10838183201/">スーパースポーツゼビオ</a></li>
+        <li>CRAFTの技術（エッジベベル・Popster等）: <a href="https://www.bswake.com/products/craft-snowboard">BS Wake（製品ページ）</a> / <a href="https://www.absolute-snow.com/salomon-craft-snowboards-2025">Absolute-Snow（Craft 2025）</a></li>
+        <li>2x4インサート: <a href="https://www.skatepro.com/en-us/60-44579.htm">SkatePro（Salomon Huck Knife）</a></li>
+        <li>Rock Out Camber: <a href="https://www.absolute-snow.com/buying-guides/the-absolute-guide-to-salomon-snowboard-camber-profiles">Absolute-Snow</a></li>
+        <li>スタイル別アングル: <a href="https://skiski.jp/snowcomi/snowboard-binding-angle/">スノコミ</a> / <a href="https://xn--qck5b4ef.net/stance/">Snowboard Hack</a> / <a href="https://blog.milys-style.com/ground-trick-stance-angle-setup/">Milys Style（グラトリ）</a></li>
+        <li>スタンス幅の目安: <a href="https://bravo-m.futabanet.jp/articles/-/120445?page=2">BRAVO MOUNTAIN</a> / <a href="https://www.snowboardingjunkie.com/ja/how-to-set-snowboarding-stance-width/">snowboardingjunkie</a> / <a href="https://dqnsnowboarder.com/?p=13894">dqnsnowboarder</a></li>
+        <li>CRAFT試乗レビュー: <a href="https://blog.milys-style.com/salomon-craft-snowboard-test-ride-review/">Milys Style（22-23モデル）</a></li>
+        <li>ディレクショナルツイン: <a href="https://whitelines.com/snowboard-gear/before-you-buy/snowboard-shapes-explained.html">Whitelines</a></li>
+        <li>RHYTHM: <a href="https://www.absolute-snow.com/salomon-rhythm-snowboard-bindings-2025">Absolute-Snow（2025）</a> / <a href="https://www.tactics.com/salomon/rhythm-snowboard-bindings">Tactics（2026）</a> / <a href="https://xn--qck5b4ef.net/salomon-binding/">Snowboard Hack（サロモンのビンディング比較）</a></li>
+        <li>FACTION BOA: <a href="https://www.absolute-snow.com/salomon-faction-boa-snowboard-boots-men-2026">Absolute-Snow（2026）</a> / <a href="https://whitelines.com/snowboard-gear/reviews/boots/salomon-faction-boa-2021-2022.html">Whitelines（レビュー）</a></li>
+        <li>取り付け・調整全般: <a href="https://www.burton.com/en-us/blogs/the-burton-blog/how-to-mount-snowboard-bindings">Burton "How to Mount Snowboard Bindings"</a> / <a href="https://whitelines.com/snowboard-gear/set-up-maintenance/adjust-snowboard-bindings.html">Whitelines "How To Adjust Your Snowboard Bindings"</a></li>
+        <li>カービングの物理: <a href="https://arxiv.org/abs/physics/0310086">Jentschura &amp; Fahrbach "Physics of Skiing"（arXiv）</a> / J. Howe『Skiing Mechanics』</li>
+        <li>床テスト・症状→調整・根拠区分: 仕様メモ（snowboard-setup-app-spec.md）5〜8章</li>
+      </ul>
+      <ul class="guide-list sources" id="sources-extra"></ul>
+    </details>
+  </main>
+
+  <section id="print-sheet" aria-hidden="true"></section>
+
+  <script src="setup-data.js"></script>
+  <script src="setup-content.js"></script>
+  <script src="setup-diagrams.js"></script>
+  <script src="vendor/qrcode.js"></script>
+  <script src="setup.js"></script>
+  <script>
+    // オフラインで開けるように（公開したページ＝https か、手元の localhost のときだけ）
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js");
+  </script>
+</body>
+</html>

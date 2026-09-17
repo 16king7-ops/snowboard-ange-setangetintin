@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>スノボ フォーム分析</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#14202b" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="スノボ分析" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark">❄</span>
+      <h1>スノボ フォーム分析</h1>
+    </div>
+    <div class="header-controls">
+      <div class="mode-switch" role="tablist" aria-label="画面モード">
+        <button class="mode-btn is-active" data-mode="single">1画面</button>
+        <button class="mode-btn" data-mode="dual">2画面比較</button>
+      </div>
+      <label class="level-pick">レベル
+        <select id="coach-level" title="あなたのレベルに合わせてアドバイスが変わります">
+          <option value="beginner">初心者（ターン前）</option>
+          <option value="turn">連続ターン練習中</option>
+          <option value="carving">カービング</option>
+        </select>
+      </label>
+      <button id="open-lessons" class="btn-ghost" title="段階別レッスン">📚 レッスン</button>
+      <button id="open-training" class="btn-ghost" title="夏の家トレ">🏋️ オフトレ</button>
+      <button id="open-learn" class="btn-ghost" title="イメトレ＆理論クイズ">🧠 学習</button>
+      <button id="open-history" class="btn-ghost" title="記録の履歴と推移">📈 履歴</button>
+      <a href="setup.html" class="btn-ghost" style="text-decoration:none" title="板とバインディングのセッティング図">🔧 セッティング</a>
+      <div class="sync-controls" hidden>
+        <button id="sync-step-back" class="btn-ghost" title="両方コマ戻し">⏮ コマ</button>
+        <button id="sync-play" class="btn-accent" title="両方再生/停止">▶ 同期再生</button>
+        <button id="sync-step-fwd" class="btn-ghost" title="両方コマ送り">コマ ⏭</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="panels" class="panels single"></main>
+
+  <div id="history-modal" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-label="記録履歴">
+      <div class="modal-head">
+        <h3>📈 上達の記録</h3>
+        <button id="close-history" class="btn-ghost" title="閉じる">✕</button>
+      </div>
+      <div class="graph-bar">
+        <label>指標
+          <select id="graph-metric">
+            <option value="knee">膝（左/右）</option>
+            <option value="hip">股関節（左/右）</option>
+            <option value="balance">重心バランス</option>
+            <option value="training">オフトレ（実施ドリル数）</option>
+          </select>
+        </label>
+        <div class="graph-actions">
+          <button id="export-records" class="btn-ghost">⬇ エクスポート</button>
+          <button id="import-records" class="btn-ghost">⬆ インポート</button>
+          <input type="file" id="import-file" accept="application/json" hidden />
+        </div>
+      </div>
+      <canvas id="history-graph" class="history-graph"></canvas>
+      <div id="history-list" class="history-list"></div>
+    </div>
+  </div>
+
+  <div id="lessons-modal" class="modal-overlay" hidden>
+    <div class="modal lessons-modal" role="dialog" aria-label="レッスン">
+      <div class="modal-head">
+        <h3>📚 段階別レッスン</h3>
+        <button id="close-lessons" class="btn-ghost" title="閉じる">✕</button>
+      </div>
+      <div id="lessons-body" class="lessons-body"></div>
+    </div>
+  </div>
+
+  <div id="training-modal" class="modal-overlay" hidden>
+    <div class="modal lessons-modal" role="dialog" aria-label="オフトレ">
+      <div class="modal-head">
+        <h3>🏋️ 夏のオフトレ</h3>
+        <button id="close-training" class="btn-ghost" title="閉じる">✕</button>
+      </div>
+      <div id="training-body" class="lessons-body"></div>
+    </div>
+  </div>
+
+  <div id="learn-modal" class="modal-overlay" hidden>
+    <div class="modal lessons-modal" role="dialog" aria-label="学習">
+      <div class="modal-head">
+        <h3>🧠 学習（イメトレ＆クイズ）</h3>
+        <button id="close-learn" class="btn-ghost" title="閉じる">✕</button>
+      </div>
+      <div class="learn-tabs">
+        <button class="learn-tab is-active" data-tab="imagery">イメトレ</button>
+        <button class="learn-tab" data-tab="goals">目標設定</button>
+        <button class="learn-tab" data-tab="quiz">理論クイズ</button>
+      </div>
+      <div id="learn-body" class="lessons-body"></div>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <p class="hint">
+      <strong>使い方:</strong>
+      動画をドラッグ&ドロップ → スロー/コマ送りでフォーム確認 →
+      <em>骨格</em>で姿勢、<em>左右荷重</em>と<em>上体の傾き</em>を自動表示、<em>角度</em>で膝の曲げを計測。
+      お手本が無くても <em>記録</em>で自分の上達を可視化できます。
+    </p>
+    <p class="hint">
+      <strong>後方からの追い撮り（背面撮り）のコツ:</strong>
+      <em>左右の荷重バランス</em>と<em>上体の傾き（角付け/インクリネーション）</em>の確認に最適です。
+      比較したいときは、自分のベストランを「基準登録」して別ランと <em>2画面比較</em> で重ねられます。
+    </p>
+    <p class="hint subtle">骨格検出は初回のみAIモデルの読み込みに数秒かかります（要ネット接続）。動画はすべて端末内で処理され、外部に送信されません。</p>
+  </footer>
+
+  <!-- 1つの動画パネルのテンプレート -->
+  <template id="panel-template">
+    <section class="panel" data-state="empty">
+      <div class="panel-label"></div>
+
+      <div class="drop-zone">
+        <div class="drop-inner">
+          <span class="drop-icon">🏂</span>
+          <p>滑走動画をドラッグ&ドロップ</p>
+          <button class="btn-accent file-pick">動画を選択</button>
+          <button class="btn-ghost cam-pick">📷 カメラで姿勢チェック</button>
+          <input type="file" class="file-input" accept="video/*" hidden />
+        </div>
+      </div>
+
+      <div class="stage" hidden>
+        <div class="video-wrap">
+          <video class="video" playsinline></video>
+          <canvas class="pose-canvas"></canvas>
+          <canvas class="balance-canvas"></canvas>
+          <canvas class="draw-canvas"></canvas>
+          <div class="angle-readout" hidden></div>
+          <div class="balance-readout" hidden></div>
+          <div class="compare-readout" hidden></div>
+        </div>
+
+        <div class="seekbar">
+          <input type="range" class="seek" min="0" max="1000" value="0" step="1" />
+          <span class="time-readout">0.00s / 0.00s</span>
+        </div>
+
+        <div class="controls">
+          <div class="ctrl-group playback">
+            <button class="btn-ghost step-back" title="コマ戻し">⏮</button>
+            <button class="btn-accent play" title="再生/停止">▶</button>
+            <button class="btn-ghost step-fwd" title="コマ送り">⏭</button>
+          </div>
+
+          <div class="ctrl-group speed">
+            <label>速度 <span class="speed-val">1.0x</span></label>
+            <input type="range" class="speed-slider" min="0.1" max="1.5" step="0.1" value="1" />
+          </div>
+
+          <div class="ctrl-group fps">
+            <label>fps</label>
+            <input type="number" class="fps-input" min="1" max="120" value="30" />
+          </div>
+
+          <div class="ctrl-group tools">
+            <button class="tool-btn pose-toggle" data-on="false" title="AI骨格検出">骨格</button>
+            <button class="tool-btn" data-tool="angle" title="角度計測">角度</button>
+            <button class="tool-btn" data-tool="line" title="直線">直線</button>
+            <button class="tool-btn" data-tool="pen" title="ペン">ペン</button>
+            <input type="color" class="color-input" value="#34e1c4" title="色" />
+            <button class="btn-ghost clear-draw" title="書き込みを消す">消去</button>
+          </div>
+
+          <div class="ctrl-group compare">
+            <button class="tool-btn capture-ref" title="現在フレームを基準フォームとして登録（自分のベストランでもOK）">⮯ 基準登録</button>
+            <button class="tool-btn compare-toggle" data-on="false" disabled title="基準フォームを重畳">⧉ 基準と重畳</button>
+          </div>
+
+          <div class="ctrl-group misc">
+            <button class="btn-accent record-btn" title="現在のフォームを記録">● 記録</button>
+            <button class="btn-ghost auto-review" title="動画全体を自動レビュー">🔍 自動レビュー</button>
+            <button class="btn-ghost reload" title="別の動画を読み込む">↺ 変更</button>
+          </div>
+        </div>
+
+        <div class="pose-status" hidden></div>
+        <div class="compare-status" hidden></div>
+        <div class="tool-hint" hidden></div>
+        <div class="coach-panel" hidden></div>
+        <div class="review-panel" hidden></div>
+      </div>
+    </section>
+  </template>
+
+  <script src="lessons.js"></script>
+  <script src="reference.js"></script>
+  <script src="training.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // オフラインで開けるように（公開したページ＝https か、手元の localhost のときだけ）
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js");
+  </script>
+</body>
+</html>

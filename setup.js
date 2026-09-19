@@ -884,19 +884,88 @@ function fillStaticFigs() {
   }
 }
 
+// ---------- 上達のロードマップ ----------
+// 「次へ進む目安」のチェックは他のチェックリストと同じ仕組みで保存する（id: grow-<段階>-<番号>）。
+// 全部チェックが付いた段階はクリア。いちばん手前の未クリアの段階が「いまここ」。
+const anim = (id) => (globalThis.SETUP_ANIM && id && SETUP_ANIM.has(id) ? SETUP_ANIM.html(id) : "");
+const stageDone = (s, st) => s.checks.every((_, i) => st[`grow-${s.id}-${i}`]);
+function growCurrent() {
+  const g = CT.grow, st = checkState(), i = g.stages.findIndex((s) => !stageDone(s, st));
+  return (i < 0 ? g.stages[g.stages.length - 1] : g.stages[i]).id;
+}
+
+function growVideo(v) {
+  return `<div class="video"><button type="button" class="video-play" data-yt="${esc(v.videoId)}" aria-label="${esc(v.title)}を再生">▶</button>` +
+    `<div class="video-meta"><b>${esc(v.title)}</b><span class="hint">${esc(v.channel)}${v.minutes ? `・約${Math.round(v.minutes)}分` : ""}</span>` +
+    (v.why ? `<span>${esc(v.why)}</span>` : "") +
+    `<a class="hint" href="https://www.youtube.com/watch?v=${esc(v.videoId)}" target="_blank" rel="noopener">YouTubeで開く</a></div></div>`;
+}
+
+function growStage(s, st, cur) {
+  const n = s.checks.filter((_, i) => st[`grow-${s.id}-${i}`]).length, isCur = s.id === cur, isDone = stageDone(s, st);
+  const figure = (s.anims || []).map(anim).join("") || fig(s.fig);
+  const points = (s.points || []).length
+    ? `<h4>動きのポイント</h4><dl class="why">${s.points.map((p) => `<dt>${esc(p.h)}</dt><dd>${esc(p.body)}${gradeTag(p.grade)}${srcLinks(p.sources)}</dd>`).join("")}</dl>` : "";
+  const drills = (s.drills || []).length
+    ? `<h4>練習メニュー</h4><ol class="steps">${s.drills.map((d) => `<li><b>${esc(d.name)}</b> <span class="hint">${esc(d.where)}</span>` +
+      `<ol class="drill">${d.how.map((h) => `<li>${esc(h)}</li>`).join("")}</ol>` +
+      `<span class="drill-goal">できたと分かる目安: ${esc(d.goal)}</span>${gradeTag(d.grade)}${srcLinks(d.sources)}</li>`).join("")}</ol>` : "";
+  const mistakes = (s.mistakes || []).length
+    ? `<h4>よくある失敗</h4><div class="table-wrap"><table class="su-table"><tr><th>こうなったら</th><th>原因</th><th>直し方</th></tr>` +
+      s.mistakes.map((m) => `<tr><td>${esc(m.sign)}</td><td>${esc(m.cause)}</td><td>${esc(m.fix)}${gradeTag(m.grade)}${srcLinks(m.sources)}</td></tr>`).join("") + `</table></div>` : "";
+  const videos = (s.videos || []).length
+    ? `<h4>動画で見る <span class="hint">電波のある所で。タップすると再生（YouTube）</span></h4><div class="videos">${s.videos.map(growVideo).join("")}</div>` +
+      (s.searchQuery ? `<p class="hint"><a href="https://www.youtube.com/results?search_query=${encodeURIComponent(s.searchQuery)}" target="_blank" rel="noopener">🔍 YouTubeでほかの動画を探す</a></p>` : "") : "";
+  const checks = `<h4>次へ進む目安 <span class="check-progress">${n}/${s.checks.length}</span></h4><ul class="checklist">` +
+    s.checks.map((c, i) => `<li><label><input type="checkbox" data-check="grow-${esc(s.id)}-${i}"${st[`grow-${s.id}-${i}`] ? " checked" : ""}><span>${esc(c)}</span></label></li>`).join("") + `</ul>`;
+  const badge = isCur ? `<span class="badge">いまここ</span>` : isDone ? `<span class="badge done">クリア</span>` : "";
+  return `<details class="su-panel stage${isCur ? " now" : ""}" data-stage="${esc(s.id)}"${isCur ? " open" : ""}><summary><b>${esc(s.title)}</b><span class="stage-badge">${badge}</span>` +
+    `<span class="check-progress">${n}/${s.checks.length}</span></summary>` +
+    `<p class="read">${esc(s.goal)}</p>${figure}${points}${drills}${mistakes}${videos}${checks}` +
+    `<p class="read"><b>見直すセッティング:</b> ${esc(s.setting)}${gradeTag(s.grade)}</p>` +
+    (s.note ? `<p class="read hint">${esc(s.note)}</p>` : "") +
+    (s.safety ? `<p class="warn">安全: ${esc(s.safety)}</p>` : "") +
+    ((s.sources || []).length ? `<p class="read">${srcLinks(s.sources)}</p>` : "") + `</details>`;
+}
+
+function renderGrow() {
+  if (!CT) return;
+  const g = CT.grow, st = checkState(), cur = growCurrent(), now = g.stages.find((s) => s.id === cur) || g.stages[0];
+  const done = g.stages.filter((s) => stageDone(s, st)).length;
+  $("grow").innerHTML =
+    `<section class="su-panel"><h2>上達のロードマップ</h2><p class="read">${esc(g.intro)}</p>` +
+    `<p class="read" id="grow-now"><b>いまここ: ${esc(now.title)}</b>（${g.stages.length}段階中 ${done}段階クリア）</p>` +
+    `<p class="hint">各段階の「次へ進む目安」にチェックを付けると、次の段階が「いまここ」になります。チェックはこの端末に保存されます。動く図は▶で再生、スライダーでコマ送りできます。</p></section>` +
+    g.stages.map((s) => growStage(s, st, cur)).join("") +
+    `<p class="callout">基本姿勢〜カービング入門の練習メニューは、フォーム分析アプリの「<a href="index.html#lessons">📚 レッスン</a>」と「<a href="index.html#training">🏋️ オフトレ</a>」にあります。</p>`;
+  if (globalThis.SETUP_ANIM) SETUP_ANIM.attach($("grow"));
+}
+
+// チェックを付け外ししたときに、進み具合と「いまここ」だけを書き換える（描き直すと入力中の位置が飛ぶため）
+function growUpdate() {
+  if (!CT) return;
+  const g = CT.grow, st = checkState(), cur = growCurrent(), done = g.stages.filter((s) => stageDone(s, st)).length;
+  const now = g.stages.find((s) => s.id === cur) || g.stages[0];
+  const head = $("grow-now");
+  if (head) head.innerHTML = `<b>いまここ: ${esc(now.title)}</b>（${g.stages.length}段階中 ${done}段階クリア）`;
+  for (const s of g.stages) {
+    const el = document.querySelector(`details.stage[data-stage="${s.id}"]`);
+    if (!el) continue;
+    const n = s.checks.filter((_, i) => st[`grow-${s.id}-${i}`]).length;
+    for (const p of el.querySelectorAll(".check-progress")) p.textContent = `${n}/${s.checks.length}`;
+    el.classList.toggle("now", s.id === cur);
+    const b = el.querySelector(".stage-badge");
+    if (b) b.innerHTML = s.id === cur ? `<span class="badge">いまここ</span>` : stageDone(s, st) ? `<span class="badge done">クリア</span>` : "";
+  }
+}
+
 function renderContent() {
   const none = `<section class="su-panel"><p class="warn">読みもののデータ（setup-content.js）を読み込めませんでした。</p></section>`;
   if (!CT) { for (const id of ["ride-sections", "gear-extra", "care", "grow"]) $(id).innerHTML = none; return; }
   $("ride-sections").innerHTML = CT.ride.sections.map(sectionHtml).join("");
   $("gear-extra").innerHTML = CT.gear.sections.map(sectionHtml).join("");
   $("care").innerHTML = CT.care.sections.map(sectionHtml).join("");
-  const g = CT.grow;
-  $("grow").innerHTML = `<section class="su-panel"><h2>上達のロードマップ</h2><p class="read">${esc(g.intro)}</p>` +
-    g.stages.map((s) => `<div class="stage${s.id === g.current ? " now" : ""}"><h3>${esc(s.title)}${s.id === g.current ? `<span class="badge">いまここ</span>` : ""}</h3>` +
-      `<p class="read">${esc(s.goal)}</p>${fig(s.fig)}<p class="read"><b>次へ進む目安</b></p><ul class="guide-list">${s.checks.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>` +
-      `<p class="read"><b>見直すセッティング:</b> ${esc(s.setting)}${gradeTag(s.grade)}</p>` + (s.note ? `<p class="read hint">${esc(s.note)}</p>` : "") + (s.safety ? `<p class="read"><b>安全:</b> ${esc(s.safety)}</p>` : "") +
-      (s.sources && s.sources.length ? `<p class="read">${srcLinks(s.sources)}</p>` : "") + `</div>`).join("") +
-    `<p class="callout">基本姿勢〜カービング入門の練習メニューは、フォーム分析アプリの「<a href="index.html#lessons">📚 レッスン</a>」と「<a href="index.html#training">🏋️ オフトレ</a>」にあります。</p></section>`;
+  renderGrow();
   $("faq").innerHTML = CT.faq.map((f) => `<details class="faq"><summary>${esc(f.q)}</summary><p>${esc(f.a)}${gradeTag(f.grade)}${srcLinks(f.sources)}</p>${fig(f.fig)}</details>`).join("");
   $("sources-extra").innerHTML = (CT.sources || []).map((s) => `<li>${esc(s.label)}: <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a></li>`).join("");
   renderGlossary();
@@ -1000,6 +1069,11 @@ document.addEventListener("click", (e) => {
     fo.setAttribute("aria-expanded", String(!open));
     return;
   }
+  const yt = e.target.closest("[data-yt]");
+  if (yt) { // 動画はタップされてから読み込む（通信量とページの重さを抑えるため）
+    yt.closest(".video").outerHTML = `<div class="video-frame"><iframe src="https://www.youtube-nocookie.com/embed/${esc(yt.dataset.yt)}?autoplay=1" title="解説動画" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+    return;
+  }
   const step = e.target.closest("[data-step]");
   if (step) {
     const input = step.parentElement.querySelector('input[type="range"]');
@@ -1029,6 +1103,7 @@ document.addEventListener("change", (e) => {
   const st = checkState();
   if (c.checked) st[c.dataset.check] = 1; else delete st[c.dataset.check];
   store.set(CHECK, st);
+  if (c.dataset.check.startsWith("grow-")) { growUpdate(); return; }
   const ul = c.closest("ul.checklist"), progress = ul && ul.previousElementSibling && ul.previousElementSibling.querySelector(".check-progress");
   if (progress) { const boxes = [...ul.querySelectorAll("input")]; progress.textContent = `${boxes.filter((b) => b.checked).length}/${boxes.length}`; }
 });

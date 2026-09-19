@@ -1,9 +1,9 @@
 // オフラインで開けるようにするサービスワーカー。
 // ファイルを更新して公開するときは VERSION を上げる（上げないと、次に開いたときまで古いファイルが出る）。
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = "snowboard-" + VERSION;
 const FILES = [
-  "./", "setup.html", "setup.css", "setup.js", "setup-data.js", "setup-content.js", "setup-diagrams.js", "vendor/qrcode.js",
+  "./", "setup.html", "setup.css", "setup.js", "setup-data.js", "setup-content.js", "setup-diagrams.js", "setup-anim.js", "vendor/qrcode.js",
   "index.html", "styles.css", "app.js", "lessons.js", "reference.js", "training.js",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
 ];

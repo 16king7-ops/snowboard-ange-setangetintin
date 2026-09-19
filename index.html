@@ -205,8 +205,22 @@
   <script src="training.js"></script>
   <script src="app.js"></script>
   <script>
-    // オフラインで開けるように（公開したページ＝https か、手元の localhost のときだけ）
-    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js");
+    // オフラインで開けるように（公開したページ＝https か、手元の localhost のときだけ）。
+    // 中身が新しくなったら、画面の下に「更新する」の帯を出す（保存した古い内容のままにならないように）。
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+      navigator.serviceWorker.register("sw.js");
+      let had = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!had) { had = true; return; } // 初めて保存したときは出さない
+        if (document.querySelector(".sw-update")) return;
+        const bar = document.createElement("div");
+        bar.className = "sw-update";
+        bar.innerHTML = '<span>新しい内容があります</span><button type="button">更新する</button><button type="button" class="sw-close" aria-label="閉じる">×</button>';
+        bar.querySelector("button").addEventListener("click", () => location.reload());
+        bar.querySelector(".sw-close").addEventListener("click", () => bar.remove());
+        document.body.appendChild(bar);
+      });
+    }
   </script>
 </body>
 </html>

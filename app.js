@@ -91,6 +91,23 @@ function computeJointAngles(norm) {
   return ang;
 }
 
+// ---------- アイコン（vendor/lucide.js） ----------
+// 絵文字をやめて Lucide の線画アイコンを使う。読み込めなければ何も出さない（文字だけで意味が通るようにしてある）。
+const ICON = (name, o = {}) => (globalThis.LUCIDE ? LUCIDE.icon(name, o) : "");
+
+// アドバイスの重さ（good / warn / bad）ごとのアイコン
+const LVL_ICON = { good: "check", warn: "triangle-alert", bad: "circle-alert" };
+const tipHtml = (lvl, text) => `<div class="coach-tip ${lvl}">${ICON(LVL_ICON[lvl] || "info", { size: 14 })}<span>${text}</span></div>`;
+
+// HTML に書いた <span data-icon="名前" data-size="16"></span> に SVG を入れる
+function fillIcons(root = document) {
+  for (const el of root.querySelectorAll("[data-icon]")) {
+    if (el.dataset.iconDone) continue;
+    el.innerHTML = ICON(el.dataset.icon, { size: +el.dataset.size || 16 });
+    el.dataset.iconDone = "1";
+  }
+}
+
 // HTMLエスケープ（記録メモ・履歴表示で innerHTML 構築に使用）
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (ch) =>
@@ -200,7 +217,7 @@ class Panel {
     this.root.dataset.state = "camera";
     this.root.classList.add("is-camera");
     if (!this._stageBound) { this._bindStage(); this._stageBound = true; }
-    this.q(".reload").textContent = "■ カメラ停止";
+    this.q(".reload").innerHTML = ICON("square", { size: 15 }) + "カメラ停止";
 
     try { await video.play(); } catch (e) { /* ignore */ }
     this._resizeCanvases();
@@ -226,7 +243,7 @@ class Panel {
       this._bindStage();
       this._stageBound = true;
     }
-    this.q(".reload").textContent = "↺ 変更";
+    this.q(".reload").innerHTML = ICON("rotate-ccw", { size: 15 }) + "変更";
 
     video.addEventListener(
       "loadedmetadata",
@@ -318,7 +335,7 @@ class Panel {
       this.q(".video").pause();
       this._stopCamera();
       this._stopPoseLoop();
-      this.q(".reload").textContent = "↺ 変更";
+      this.q(".reload").innerHTML = ICON("rotate-ccw", { size: 15 }) + "変更";
       this.q(".stage").hidden = true;
       this.q(".drop-zone").hidden = false;
       this.root.dataset.state = "empty";
@@ -348,7 +365,7 @@ class Panel {
   }
 
   _reflectPlay(playing) {
-    this.q(".play").textContent = playing ? "⏸" : "▶";
+    this.q(".play").innerHTML = ICON(playing ? "pause" : "play", { size: 16 });
     if (playing) this._resetCmpAccum(); // 再生開始ごとに比較の平均をリセット
     if (playing && this.poseOn) this._startPoseLoop();
     if (this.onPlayStateChange) this.onPlayStateChange(playing);
@@ -428,7 +445,7 @@ class Panel {
         status.textContent = "骨格検出: ON";
         this._startPoseLoop();
       } else {
-        status.textContent = "骨格検出: ON ／ ▶再生でリアルタイム追従（コマ送り・シークも可）";
+        status.textContent = "骨格検出: ON ／ 再生するとリアルタイムで追従（コマ送り・シークも可）";
         this._detectOnce();
       }
     } else {
@@ -712,8 +729,8 @@ class Panel {
           el.hidden = false;
           el.dataset.mode = "detail";
           el.innerHTML =
-            `<div class="coach-title">💡 お手本との比較（この1コマ）</div>` +
-            refTips.slice(0, 3).map((t) => `<div class="coach-tip ${t.level}">${t.text}</div>`).join("") +
+            `<div class="coach-title">${ICON("lightbulb", { size: 15 })}お手本との比較（この1コマ）</div>` +
+            refTips.slice(0, 3).map((t) => tipHtml(t.level, t.text)).join("") +
             `<div class="coach-note">お手本フォームとの関節角度の差から算出。</div>`;
           return;
         }
@@ -744,8 +761,8 @@ class Panel {
     tips.sort((x, y) => rank[x.level] - rank[y.level]);
     el.hidden = false;
     el.innerHTML =
-      `<div class="coach-title">💡 アドバイス</div>` +
-      tips.slice(0, 3).map((t) => `<div class="coach-tip ${t.level}">${t.text}</div>`).join("") +
+      `<div class="coach-title">${ICON("lightbulb", { size: 15 })}アドバイス</div>` +
+      tips.slice(0, 3).map((t) => tipHtml(t.level, t.text)).join("") +
       `<div class="coach-note">※一般的な目安です。コブ・パウダー・斜度で最適姿勢は変わります。</div>`;
   }
 
@@ -795,7 +812,7 @@ class Panel {
     if (a.nK) {
       const d = a.sumK / a.nK;
       const lvl = Math.abs(d) < 10 ? "good" : Math.abs(d) < 20 ? "warn" : "bad";
-      tips.push({ lvl, t: Math.abs(d) < 10 ? "膝の曲げはお手本とほぼ同じ ✓"
+      tips.push({ lvl, t: Math.abs(d) < 10 ? "膝の曲げはお手本とほぼ同じ"
         : `膝が平均で お手本より ${Math.round(Math.abs(d))}° ${d > 0 ? "伸びています（もっと曲げる）" : "深く曲がっています"}` });
     }
     if (a.nH) {
@@ -813,11 +830,11 @@ class Panel {
     el.hidden = false;
     el.dataset.mode = "summary";
     el.innerHTML =
-      `<div class="coach-title">💡 お手本との比較（再生区間の平均）</div>` +
-      tips.slice(0, 3).map((t) => `<div class="coach-tip ${t.lvl}">${t.t}</div>`).join("") +
+      `<div class="coach-title">${ICON("lightbulb", { size: 15 })}お手本との比較（再生区間の平均）</div>` +
+      tips.slice(0, 3).map((t) => tipHtml(t.lvl, t.t)).join("") +
       `<div class="coach-summary-row">一致度 平均 <b>${avgScore}</b> ／ ${a.n}フレーム</div>` +
-      `<button class="coach-jump" data-jump="${a.worstT.toFixed(2)}">▶ 最もズレた瞬間で止めて見る</button>` +
-      `<div class="coach-note">スロー（速度スライダー）やコマ送り（⏮⏭ / ←→）にすると1コマずつ細部まで見られます。</div>`;
+      `<button class="coach-jump" data-jump="${a.worstT.toFixed(2)}">${ICON("play", { size: 14 })}最もズレた瞬間で止めて見る</button>` +
+      `<div class="coach-note">スロー（速度スライダー）やコマ送りボタン（← → キーでも可）にすると1コマずつ細部まで見られます。</div>`;
   }
 
   // ---------- 理想フォーム比較 ----------
@@ -846,7 +863,7 @@ class Panel {
     try {
       localStorage.setItem("snowboard.refPose", JSON.stringify(Panel.sharedRefPose));
     } catch (e) { console.warn("基準フォームの保存に失敗", e); }
-    this._setCompareStatus("基準フォームを登録しました ✓");
+    this._setCompareStatus("基準フォームを登録しました");
     panels.forEach((p) => p._refreshCompareButtons());
   }
 
@@ -956,10 +973,10 @@ class Panel {
 
     if (!this.poseLandmarker) {
       panel.hidden = false;
-      panel.innerHTML = `<div class="review-title">🔍 AIモデルを読み込み中…（初回は数秒）</div>`;
+      panel.innerHTML = `<div class="review-title">${ICON("search", { size: 15 })}AIモデルを読み込み中…（初回は数秒）</div>`;
       try { this.poseLandmarker = await createPoseLandmarker(); }
       catch (e) {
-        panel.innerHTML = `<div class="review-title">🔍 自動レビュー</div><div class="review-empty">骨格AIの読み込みに失敗しました（ネット接続を確認）</div>`;
+        panel.innerHTML = `<div class="review-title">${ICON("search", { size: 15 })}自動レビュー</div><div class="review-empty">${ICON("circle-alert", { size: 14 })}骨格AIの読み込みに失敗しました（ネット接続を確認）</div>`;
         return;
       }
     }
@@ -969,7 +986,7 @@ class Panel {
     v.pause();
     this._stopPoseLoop();
     panel.hidden = false;
-    panel.innerHTML = `<div class="review-title">🔍 自動レビュー中… <span class="review-prog">0%</span></div>`;
+    panel.innerHTML = `<div class="review-title">${ICON("search", { size: 15 })}自動レビュー中… <span class="review-prog">0%</span></div>`;
 
     const dur = v.duration;
     const aspect = this._videoAspect();
@@ -1019,11 +1036,11 @@ class Panel {
 
   _renderReview(panel, issues) {
     if (!issues.length) {
-      panel.innerHTML = `<div class="review-title">🔍 自動レビュー</div><div class="review-empty">大きな崩れは見つかりませんでした 👍 良い感じです！</div>`;
+      panel.innerHTML = `<div class="review-title">${ICON("search", { size: 15 })}自動レビュー</div><div class="review-empty">${ICON("circle-check", { size: 14 })}大きな崩れは見つかりませんでした。良い感じです！</div>`;
       return;
     }
     panel.innerHTML =
-      `<div class="review-title">🔍 自動レビュー（${issues.length}件・クリックでその瞬間へ）</div>` +
+      `<div class="review-title">${ICON("search", { size: 15 })}自動レビュー（${issues.length}件・クリックでその瞬間へ）</div>` +
       issues.map((e) => `<button class="review-item ${e.sev}" data-t="${e.t.toFixed(2)}">
           <span class="ri-time">${fmtTime(e.t)}</span>
           <span class="ri-label">${escapeHtml(e.label)}</span>
@@ -1074,9 +1091,9 @@ class Panel {
     const hint = this.q(".tool-hint");
     if (hint) {
       const msgs = {
-        angle: "📐 角度ツール: 測りたい関節を中心に、動画上を3点クリック（例: 股関節 → 膝 → 足首）",
-        line: "📏 直線ツール: 動画上をドラッグして直線を引く",
-        pen: "✏️ ペンツール: 動画上をドラッグして書き込み",
+        angle: "角度ツール: 測りたい関節を中心に、動画上を3点クリック（例: 股関節 → 膝 → 足首）",
+        line: "直線ツール: 動画上をドラッグして直線を引く",
+        pen: "ペンツール: 動画上をドラッグして書き込み",
       };
       if (this.tool === "none" || !msgs[this.tool]) {
         hint.hidden = true;
@@ -1228,8 +1245,8 @@ class Panel {
       const status = this.q(".pose-status");
       status.hidden = false;
       status.classList.remove("error");
-      status.textContent = "記録しました ✓";
-      setTimeout(() => { if (status.textContent === "記録しました ✓") status.hidden = true; }, 1800);
+      status.textContent = "記録しました";
+      setTimeout(() => { if (status.textContent === "記録しました") status.hidden = true; }, 1800);
     }
   }
 }
@@ -1251,7 +1268,7 @@ function coachTipsVsRef(cur, ref) {
     const d = ck - rk;
     if (d > TH) tips.push({ level: "bad", text: `膝がお手本より伸びています（約${Math.round(d)}°浅い）。もっと曲げて低く構えましょう。` });
     else if (d < -TH) tips.push({ level: "warn", text: `膝はお手本より深く曲がっています（約${Math.round(-d)}°）。` });
-    else tips.push({ level: "good", text: "膝の曲げはお手本とほぼ同じ ✓" });
+    else tips.push({ level: "good", text: "膝の曲げはお手本とほぼ同じ" });
   }
 
   const ch = avg(cur.lHip, cur.rHip), rh = avg(ref.lHip, ref.rHip);
@@ -1284,11 +1301,11 @@ function coachTips(m) {
     if (level === "beginner") {
       if (m.kneeAvg > 168) tips.push({ level: "bad", text: `棒立ちになっています（膝 ${k}°）。膝を軽く曲げ、いつでもしゃがめる姿勢が基本です。` });
       else if (m.kneeAvg > 155) tips.push({ level: "warn", text: `もう少し膝を曲げましょう（${k}°）。膝のクッションで安定します。` });
-      else tips.push({ level: "good", text: `良い構えです。膝が曲がっています（${k}°）✓` });
+      else tips.push({ level: "good", text: `良い構えです。膝が曲がっています（${k}°）` });
     } else {
       if (m.kneeAvg > 165) tips.push({ level: "bad", text: `膝が伸び気味（${k}°）。曲げて低く構えると安定します。` });
       else if (m.kneeAvg > 150) tips.push({ level: "warn", text: `もう少し膝を曲げると安定します（${k}°）。` });
-      else if (m.kneeAvg >= 100) tips.push({ level: "good", text: `膝の曲げは良好（${k}°）✓` });
+      else if (m.kneeAvg >= 100) tips.push({ level: "good", text: `膝の曲げは良好（${k}°）` });
       else tips.push({ level: "warn", text: `深い屈伸（${k}°）。低すぎると動きづらくなります。` });
     }
   }
@@ -1300,7 +1317,7 @@ function coachTips(m) {
     const th2 = level === "beginner" ? 40 : 35;
     if (ab > th2) tips.push({ level: "bad", text: `${dir(m.balancePct)}に乗りすぎ（${ab}%）。板の真ん中・両足の真上に立つ意識を。` });
     else if (ab > th1) tips.push({ level: "warn", text: `やや${dir(m.balancePct)}寄り（${ab}%）。中心に乗ると安定します。` });
-    else tips.push({ level: "good", text: `左右バランス良好（${ab}%）✓` });
+    else tips.push({ level: "good", text: `左右バランス良好（${ab}%）` });
   }
 
   // 上体の傾き
@@ -1568,7 +1585,7 @@ function renderLessons() {
   const li = (arr) => arr.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
   const vid = (v) => {
     const id = ytId(v.url);
-    const embed = id ? `<button class="v-embed-btn btn-ghost" data-id="${id}">▶ ここで再生</button>` : "";
+    const embed = id ? `<button class="v-embed-btn btn-ghost" data-id="${id}">${ICON("play", { size: 14 })}ここで再生</button>` : "";
     return `<div class="lesson-video">
         <div class="v-title">${escapeHtml(v.title)}</div>
         <div class="v-channel">${escapeHtml(v.channel)}</div>
@@ -1585,24 +1602,24 @@ function renderLessons() {
     data.lessons.map((L) => `
       <div class="lesson">
         <div class="lesson-head">
-          <span class="lesson-caret">▶</span>
+          <span class="lesson-caret">${ICON("chevron-right", { size: 14 })}</span>
           <span class="lesson-title">${escapeHtml(L.title)}</span>
         </div>
         <div class="lesson-body">
-          <div class="lesson-goal">🎯 ${escapeHtml(L.goal)}</div>
+          <div class="lesson-goal">${ICON("target", { size: 14 })}${escapeHtml(L.goal)}</div>
           <h5>やること</h5><ul>${li(L.steps)}</ul>
           <h5>よくあるミス</h5><ul>${li(L.commonMistakes)}</ul>
           <h5>アプリでの確認方法</h5><p class="app-check">${escapeHtml(L.appCheck)}</p>
           <h5>理想の目安</h5><p class="ideal">${escapeHtml(L.idealTargets)}</p>
-          ${L.evidence && L.evidence.length ? `<h5>📚 根拠（なぜこの練習か）</h5><ul class="evidence">${li(L.evidence)}</ul>` : ""}
+          ${L.evidence && L.evidence.length ? `<h5>${ICON("book-open", { size: 15 })}根拠（なぜこの練習か）</h5><ul class="evidence">${li(L.evidence)}</ul>` : ""}
           ${L.sources && L.sources.length ? `<div class="lesson-sources"><b>出典:</b> ${L.sources.map((s) => `<a href="${encodeURI(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.label)}</a>`).join(" ／ ")}</div>` : ""}
           <h5>お手本動画</h5>
           <div class="lesson-videos">${L.videos.map(vid).join("")}</div>
-          <a class="lesson-search btn-ghost" href="https://www.youtube.com/results?search_query=${encodeURIComponent(L.searchQuery)}" target="_blank" rel="noopener">🔍 YouTubeでもっと探す</a>
+          <a class="lesson-search btn-ghost" href="https://www.youtube.com/results?search_query=${encodeURIComponent(L.searchQuery)}" target="_blank" rel="noopener">${ICON("search", { size: 14 })}YouTubeでもっと探す</a>
         </div>
       </div>`).join("") +
     (data.references && data.references.length
-      ? `<div class="lessons-refs"><h5>📚 このレッスンの主な出典（指導団体・教本・スポーツ医学）</h5><ul>${data.references.map((s) => `<li><a href="${encodeURI(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.label)}</a></li>`).join("")}</ul></div>`
+      ? `<div class="lessons-refs"><h5>${ICON("book-open", { size: 15 })}このレッスンの主な出典（指導団体・教本・スポーツ医学）</h5><ul>${data.references.map((s) => `<li><a href="${encodeURI(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.label)}</a></li>`).join("")}</ul></div>`
       : "");
 
   body.querySelectorAll(".lesson-head").forEach((h) =>
@@ -1611,9 +1628,9 @@ function renderLessons() {
   body.querySelectorAll(".v-embed-btn").forEach((b) =>
     b.addEventListener("click", () => {
       const wrap = b.closest(".lesson-video").querySelector(".v-embed-wrap");
-      if (wrap.querySelector("iframe")) { wrap.innerHTML = ""; b.textContent = "▶ ここで再生"; return; }
+      if (wrap.querySelector("iframe")) { wrap.innerHTML = ""; b.innerHTML = ICON("play", { size: 14 }) + "ここで再生"; return; }
       wrap.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${b.dataset.id}" title="YouTube" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
-      b.textContent = "■ 閉じる";
+      b.innerHTML = ICON("x", { size: 14 }) + "閉じる";
     })
   );
   const first = body.querySelector(".lesson");
@@ -1661,7 +1678,7 @@ function renderTraining() {
   const done = new Set(sess ? sess.drills : []);
   const dl = T.dryland;
   const evHtml = dl.evidence && dl.evidence.length
-    ? `<h5>📚 根拠（オフトレが効く理由）</h5><ul class="evidence">${dl.evidence.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>` : "";
+    ? `<h5>${ICON("book-open", { size: 15 })}根拠（オフトレが効く理由）</h5><ul class="evidence">${dl.evidence.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>` : "";
   const refHtml = dl.references && dl.references.length
     ? `<div class="lesson-sources"><b>出典:</b> ${dl.references.map((s) => `<a href="${encodeURI(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.label)}</a>`).join(" ／ ")}</div>` : "";
   body.innerHTML =
@@ -1673,10 +1690,10 @@ function renderTraining() {
         <div class="tr-info">
           <div class="tr-name">${escapeHtml(d.name)}<span class="tr-target">${escapeHtml(d.target)}</span></div>
           <div class="tr-how">${escapeHtml(d.how)}</div>
-          <div class="tr-why">💪 ${escapeHtml(d.why)}</div>
+          <div class="tr-why">${ICON("dumbbell", { size: 13 })}${escapeHtml(d.why)}</div>
         </div>
       </label>`).join("") +
-    `<button id="tr-save" class="btn-accent tr-save">✓ 今日の記録を保存</button>`;
+    `<button id="tr-save" class="btn-accent tr-save">${ICON("check", { size: 15 })}今日の記録を保存</button>`;
   body.querySelector("#tr-save").addEventListener("click", () => {
     const checked = Array.from(body.querySelectorAll(".tr-check:checked")).map((c) => c.value);
     if (!checked.length) { alert("やったメニューにチェックを入れてください"); return; }
@@ -1738,7 +1755,7 @@ function renderQuiz(body) {
     if (idx === q.answer) _quiz.score++; else btn.classList.add("wrong");
     const ex = body.querySelector(".quiz-explain");
     ex.hidden = false;
-    ex.innerHTML = `${idx === q.answer ? "⭕ 正解！" : "❌ 不正解"}<br>${escapeHtml(q.explain)}`;
+    ex.innerHTML = `${idx === q.answer ? ICON("circle-check", { size: 16 }) + " 正解！" : ICON("circle-x", { size: 16 }) + " 不正解"}<br>${escapeHtml(q.explain)}`;
     const nx = body.querySelector("#quiz-next");
     nx.hidden = false;
     nx.addEventListener("click", () => { _quiz.i++; _quiz.answered = false; renderQuiz(body); });
@@ -1776,6 +1793,7 @@ const panels = [];
 function makePanel(label) {
   const frag = template.content.cloneNode(true);
   const root = frag.querySelector(".panel");
+  fillIcons(frag);
   panelsEl.appendChild(frag);
   const panel = new Panel(root, label);
   panels.push(panel);
@@ -1900,6 +1918,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 // 起動
+fillIcons();
 Panel.loadSavedRef();
 makePanel("動画 A");
 setMode("single");

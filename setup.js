@@ -403,7 +403,7 @@ function renderCarve() {
     `そのとき板にかかる力: 体重${S.rd.weight}kg → <b>${c.loadKg.toFixed(0)}kg相当</b>` +
     (wr ? `（板の適正体重 ${wr[0]}〜${wr[1]}kg）` : "") + `。<br>` +
     (th >= minDrag
-      ? `<span class="warn-inline">⚠ エッジ角${th}°はブーツが雪に触れる角度（約${minDrag.toFixed(0)}°）を超えている</span>`
+      ? `<span class="warn-inline">${ICON("triangle-alert", { size: 15 })} エッジ角${th}°はブーツが雪に触れる角度（約${minDrag.toFixed(0)}°）を超えている</span>`
       : `ブーツが雪に触れる角度（約${minDrag.toFixed(0)}°）まで余裕あり。`) +
     `<br><span class="dim">理想化: 平らな雪面・ズレなし・エッジ全長が接雪。出典: J. Howe『Skiing Mechanics』/ Jentschura & Fahrbach, arXiv:physics/0310086</span>`;
 }
@@ -813,7 +813,7 @@ function renderHero() {
     ? "板に付けたら「この設定で板に取り付けた」を押しておくと、あとで図の設定と板の設定の違いが分かります。"
     : !d.length ? `板に付いている設定（${esc(m.date)}に記録）と同じです。`
     : `板に付いている設定（${esc(m.date)}に記録）から変えた所: ${chipsHtml(d)}` +
-      (d.length > 1 ? ` <span class="warn-inline">⚠ ${d.length}か所。1回に1か所がおすすめ</span>` : "");
+      (d.length > 1 ? ` <span class="warn-inline">${ICON("triangle-alert", { size: 15 })} ${d.length}か所。1回に1か所がおすすめ</span>` : "");
 }
 
 // ---------- 記録（調整ログ） ----------
@@ -827,8 +827,8 @@ function renderLog() {
     ? `最初の記録になります。いまのセッティング: <b>${setText(cur)}</b>`
     : !d.length ? `前回の記録（${esc(last.date)}）から変えた所はありません。`
     : `前回の記録（${esc(last.date)}）から変えた所: ${chipsHtml(d)}` +
-      (d.length > 1 ? `<br><span class="warn-inline">⚠ ${d.length}か所変わっています。どれが効いたか分かるよう、1回に1か所がおすすめ。</span>` : "")) +
-    (dm.length ? `<br><span class="warn-inline">⚠ 図の設定が、板に付いている設定と違います。実際に滑った設定で記録してください。</span>` : "");
+      (d.length > 1 ? `<br><span class="warn-inline">${ICON("triangle-alert", { size: 15 })} ${d.length}か所変わっています。どれが効いたか分かるよう、1回に1か所がおすすめ。</span>` : "")) +
+    (dm.length ? `<br><span class="warn-inline">${ICON("triangle-alert", { size: 15 })} 図の設定が、板に付いている設定と違います。実際に滑った設定で記録してください。</span>` : "");
   if (!$("log-date").value) $("log-date").value = today();
   $("log-list").innerHTML = log.length
     ? log.map((e, i) => ({ e, i })).reverse().map(({ e, i }) => {
@@ -848,6 +848,16 @@ const checkState = () => store.get(CHECK, {}) || {};
 const gradeTag = (g) => (g ? ` <span class="tag tag-${String(g).toLowerCase()}">${esc(g)}</span>` : "");
 const srcLinks = (list) => (list && list.length
   ? ` <span class="hint">出典 ${list.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">[${i + 1}]</a>`).join(" ")}</span>` : "");
+// アイコン（vendor/lucide.js）。読み込めなければ何も出さない
+const ICON = (name, o) => (globalThis.LUCIDE ? LUCIDE.icon(name, o) : "");
+function fillIcons(root = document) {
+  for (const el of root.querySelectorAll("[data-icon]")) {
+    if (el.dataset.iconDone) continue;
+    el.innerHTML = ICON(el.dataset.icon, { size: +el.dataset.size || 18 });
+    el.dataset.iconDone = "1";
+  }
+}
+
 // 説明の図（setup-diagrams.js）。読み込めなければ図なしで表示する
 const DG = globalThis.SETUP_DIAGRAMS;
 const fig = (id) => (DG && id ? DG.html(id) : "");
@@ -880,7 +890,7 @@ function fillStaticFigs() {
   for (const box of document.querySelectorAll("div[data-fig]")) box.innerHTML = fig(box.dataset.fig);
   for (const tr of document.querySelectorAll("tr[data-fig]")) {
     if (!DG || !DG.has(tr.dataset.fig) || tr.querySelector(".fig-btn")) continue;
-    tr.cells[0].insertAdjacentHTML("beforeend", ` <button type="button" class="fig-btn" data-fig-open aria-expanded="false">図</button>`);
+    tr.cells[0].insertAdjacentHTML("beforeend", ` <button type="button" class="fig-btn" data-fig-open aria-expanded="false">${ICON("spline", { size: 13 })}図</button>`);
   }
 }
 
@@ -895,7 +905,7 @@ function growCurrent() {
 }
 
 function growVideo(v) {
-  return `<div class="video"><button type="button" class="video-play" data-yt="${esc(v.videoId)}" aria-label="${esc(v.title)}を再生">▶</button>` +
+  return `<div class="video"><button type="button" class="video-play" data-yt="${esc(v.videoId)}" aria-label="${esc(v.title)}を再生">${ICON("play", { size: 18 })}</button>` +
     `<div class="video-meta"><b>${esc(v.title)}</b><span class="hint">${esc(v.channel)}${v.minutes ? `・約${Math.round(v.minutes)}分` : ""}</span>` +
     (v.why ? `<span>${esc(v.why)}</span>` : "") +
     `<a class="hint" href="https://www.youtube.com/watch?v=${esc(v.videoId)}" target="_blank" rel="noopener">YouTubeで開く</a></div></div>`;
@@ -915,11 +925,11 @@ function growStage(s, st, cur) {
       s.mistakes.map((m) => `<tr><td>${esc(m.sign)}</td><td>${esc(m.cause)}</td><td>${esc(m.fix)}${gradeTag(m.grade)}${srcLinks(m.sources)}</td></tr>`).join("") + `</table></div>` : "";
   const videos = (s.videos || []).length
     ? `<h4>動画で見る <span class="hint">電波のある所で。タップすると再生（YouTube）</span></h4><div class="videos">${s.videos.map(growVideo).join("")}</div>` +
-      (s.searchQuery ? `<p class="hint"><a href="https://www.youtube.com/results?search_query=${encodeURIComponent(s.searchQuery)}" target="_blank" rel="noopener">🔍 YouTubeでほかの動画を探す</a></p>` : "") : "";
+      (s.searchQuery ? `<p class="hint"><a href="https://www.youtube.com/results?search_query=${encodeURIComponent(s.searchQuery)}" target="_blank" rel="noopener">${ICON("search", { size: 15 })} YouTubeでほかの動画を探す</a></p>` : "") : "";
   const checks = `<h4>次へ進む目安 <span class="check-progress">${n}/${s.checks.length}</span></h4><ul class="checklist">` +
     s.checks.map((c, i) => `<li><label><input type="checkbox" data-check="grow-${esc(s.id)}-${i}"${st[`grow-${s.id}-${i}`] ? " checked" : ""}><span>${esc(c)}</span></label></li>`).join("") + `</ul>`;
   const badge = isCur ? `<span class="badge">いまここ</span>` : isDone ? `<span class="badge done">クリア</span>` : "";
-  return `<details class="su-panel stage${isCur ? " now" : ""}" data-stage="${esc(s.id)}"${isCur ? " open" : ""}><summary><b>${esc(s.title)}</b><span class="stage-badge">${badge}</span>` +
+  return `<details class="su-panel stage${isCur ? " now" : ""}" data-stage="${esc(s.id)}"${isCur ? " open" : ""}><summary><span class="ic-open">${ICON("chevron-right", { size: 16 })}</span><b>${esc(s.title)}</b><span class="stage-badge">${badge}</span>` +
     `<span class="check-progress">${n}/${s.checks.length}</span></summary>` +
     `<p class="read">${esc(s.goal)}</p>${figure}${points}${drills}${mistakes}${videos}${checks}` +
     `<p class="read"><b>見直すセッティング:</b> ${esc(s.setting)}${gradeTag(s.grade)}</p>` +
@@ -935,9 +945,9 @@ function renderGrow() {
   $("grow").innerHTML =
     `<section class="su-panel"><h2>上達のロードマップ</h2><p class="read">${esc(g.intro)}</p>` +
     `<p class="read" id="grow-now"><b>いまここ: ${esc(now.title)}</b>（${g.stages.length}段階中 ${done}段階クリア）</p>` +
-    `<p class="hint">各段階の「次へ進む目安」にチェックを付けると、次の段階が「いまここ」になります。チェックはこの端末に保存されます。動く図は▶で再生、スライダーでコマ送りできます。</p></section>` +
+    `<p class="hint">各段階の「次へ進む目安」にチェックを付けると、次の段階が「いまここ」になります。チェックはこの端末に保存されます。動く図は再生ボタンで動き、スライダーでコマ送りできます。</p></section>` +
     g.stages.map((s) => growStage(s, st, cur)).join("") +
-    `<p class="callout">基本姿勢〜カービング入門の練習メニューは、フォーム分析アプリの「<a href="index.html#lessons">📚 レッスン</a>」と「<a href="index.html#training">🏋️ オフトレ</a>」にあります。</p>`;
+    `<p class="callout">基本姿勢〜カービング入門の練習メニューは、フォーム分析アプリの「<a href="index.html#lessons">${ICON("book-open", { size: 15 })} レッスン</a>」と「<a href="index.html#training">${ICON("dumbbell", { size: 15 })} オフトレ</a>」にあります。</p>`;
   if (globalThis.SETUP_ANIM) SETUP_ANIM.attach($("grow"));
 }
 
@@ -1183,6 +1193,7 @@ S.card = presetMatch() || "beginner";
 syncInputs();
 renderContent();
 fillStaticFigs();
+fillIcons();
 render();
 fitFigs("setup");
 const hash = location.hash.slice(1);

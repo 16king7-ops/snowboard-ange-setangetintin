@@ -16,7 +16,7 @@
 <body>
   <header class="app-header">
     <div class="brand">
-      <span class="brand-mark">❄</span>
+      <span class="brand-mark" data-icon="snowflake" data-size="22"></span>
       <h1>スノボ フォーム分析</h1>
     </div>
     <div class="header-controls">
@@ -31,15 +31,15 @@
           <option value="carving">カービング</option>
         </select>
       </label>
-      <button id="open-lessons" class="btn-ghost" title="段階別レッスン">📚 レッスン</button>
-      <button id="open-training" class="btn-ghost" title="夏の家トレ">🏋️ オフトレ</button>
-      <button id="open-learn" class="btn-ghost" title="イメトレ＆理論クイズ">🧠 学習</button>
-      <button id="open-history" class="btn-ghost" title="記録の履歴と推移">📈 履歴</button>
-      <a href="setup.html" class="btn-ghost" style="text-decoration:none" title="板とバインディングのセッティング図">🔧 セッティング</a>
+      <button id="open-lessons" class="btn-ghost" title="段階別レッスン"><span data-icon="book-open" data-size="16"></span>レッスン</button>
+      <button id="open-training" class="btn-ghost" title="夏の家トレ"><span data-icon="dumbbell" data-size="16"></span>オフトレ</button>
+      <button id="open-learn" class="btn-ghost" title="イメトレ＆理論クイズ"><span data-icon="brain" data-size="16"></span>学習</button>
+      <button id="open-history" class="btn-ghost" title="記録の履歴と推移"><span data-icon="trending-up" data-size="16"></span>履歴</button>
+      <a href="setup.html" class="btn-ghost" style="text-decoration:none" title="板とバインディングのセッティング図"><span data-icon="wrench" data-size="16"></span>セッティング</a>
       <div class="sync-controls" hidden>
-        <button id="sync-step-back" class="btn-ghost" title="両方コマ戻し">⏮ コマ</button>
-        <button id="sync-play" class="btn-accent" title="両方再生/停止">▶ 同期再生</button>
-        <button id="sync-step-fwd" class="btn-ghost" title="両方コマ送り">コマ ⏭</button>
+        <button id="sync-step-back" class="btn-ghost" title="両方コマ戻し"><span data-icon="skip-back" data-size="15"></span>コマ</button>
+        <button id="sync-play" class="btn-accent" title="両方再生/停止"><span data-icon="play" data-size="15"></span>同期再生</button>
+        <button id="sync-step-fwd" class="btn-ghost" title="両方コマ送り">コマ<span data-icon="skip-forward" data-size="15"></span></button>
       </div>
     </div>
   </header>
@@ -49,8 +49,8 @@
   <div id="history-modal" class="modal-overlay" hidden>
     <div class="modal" role="dialog" aria-label="記録履歴">
       <div class="modal-head">
-        <h3>📈 上達の記録</h3>
-        <button id="close-history" class="btn-ghost" title="閉じる">✕</button>
+        <h3><span data-icon="trending-up" data-size="17"></span>上達の記録</h3>
+        <button id="close-history" class="btn-ghost modal-close" title="閉じる" aria-label="閉じる"><span data-icon="x" data-size="16"></span></button>
       </div>
       <div class="graph-bar">
         <label>指標
@@ -62,8 +62,8 @@
           </select>
         </label>
         <div class="graph-actions">
-          <button id="export-records" class="btn-ghost">⬇ エクスポート</button>
-          <button id="import-records" class="btn-ghost">⬆ インポート</button>
+          <button id="export-records" class="btn-ghost"><span data-icon="download" data-size="15"></span>エクスポート</button>
+          <button id="import-records" class="btn-ghost"><span data-icon="upload" data-size="15"></span>インポート</button>
           <input type="file" id="import-file" accept="application/json" hidden />
         </div>
       </div>
@@ -75,8 +75,8 @@
   <div id="lessons-modal" class="modal-overlay" hidden>
     <div class="modal lessons-modal" role="dialog" aria-label="レッスン">
       <div class="modal-head">
-        <h3>📚 段階別レッスン</h3>
-        <button id="close-lessons" class="btn-ghost" title="閉じる">✕</button>
+        <h3><span data-icon="book-open" data-size="17"></span>段階別レッスン</h3>
+        <button id="close-lessons" class="btn-ghost modal-close" title="閉じる" aria-label="閉じる"><span data-icon="x" data-size="16"></span></button>
       </div>
       <div id="lessons-body" class="lessons-body"></div>
     </div>
@@ -85,8 +85,8 @@
   <div id="training-modal" class="modal-overlay" hidden>
     <div class="modal lessons-modal" role="dialog" aria-label="オフトレ">
       <div class="modal-head">
-        <h3>🏋️ 夏のオフトレ</h3>
-        <button id="close-training" class="btn-ghost" title="閉じる">✕</button>
+        <h3><span data-icon="dumbbell" data-size="17"></span>夏のオフトレ</h3>
+        <button id="close-training" class="btn-ghost modal-close" title="閉じる" aria-label="閉じる"><span data-icon="x" data-size="16"></span></button>
       </div>
       <div id="training-body" class="lessons-body"></div>
     </div>
@@ -95,8 +95,8 @@
   <div id="learn-modal" class="modal-overlay" hidden>
     <div class="modal lessons-modal" role="dialog" aria-label="学習">
       <div class="modal-head">
-        <h3>🧠 学習（イメトレ＆クイズ）</h3>
-        <button id="close-learn" class="btn-ghost" title="閉じる">✕</button>
+        <h3><span data-icon="brain" data-size="17"></span>学習（イメトレ＆クイズ）</h3>
+        <button id="close-learn" class="btn-ghost modal-close" title="閉じる" aria-label="閉じる"><span data-icon="x" data-size="16"></span></button>
       </div>
       <div class="learn-tabs">
         <button class="learn-tab is-active" data-tab="imagery">イメトレ</button>
@@ -129,10 +129,10 @@
 
       <div class="drop-zone">
         <div class="drop-inner">
-          <span class="drop-icon">🏂</span>
+          <span class="drop-icon" data-icon="film" data-size="34"></span>
           <p>滑走動画をドラッグ&ドロップ</p>
           <button class="btn-accent file-pick">動画を選択</button>
-          <button class="btn-ghost cam-pick">📷 カメラで姿勢チェック</button>
+          <button class="btn-ghost cam-pick"><span data-icon="camera" data-size="15"></span>カメラで姿勢チェック</button>
           <input type="file" class="file-input" accept="video/*" hidden />
         </div>
       </div>
@@ -155,9 +155,9 @@
 
         <div class="controls">
           <div class="ctrl-group playback">
-            <button class="btn-ghost step-back" title="コマ戻し">⏮</button>
-            <button class="btn-accent play" title="再生/停止">▶</button>
-            <button class="btn-ghost step-fwd" title="コマ送り">⏭</button>
+            <button class="btn-ghost step-back" title="コマ戻し" aria-label="コマ戻し"><span data-icon="skip-back" data-size="16"></span></button>
+            <button class="btn-accent play" title="再生/停止" aria-label="再生/停止"><span data-icon="play" data-size="16"></span></button>
+            <button class="btn-ghost step-fwd" title="コマ送り" aria-label="コマ送り"><span data-icon="skip-forward" data-size="16"></span></button>
           </div>
 
           <div class="ctrl-group speed">
@@ -180,14 +180,14 @@
           </div>
 
           <div class="ctrl-group compare">
-            <button class="tool-btn capture-ref" title="現在フレームを基準フォームとして登録（自分のベストランでもOK）">⮯ 基準登録</button>
-            <button class="tool-btn compare-toggle" data-on="false" disabled title="基準フォームを重畳">⧉ 基準と重畳</button>
+            <button class="tool-btn capture-ref" title="現在フレームを基準フォームとして登録（自分のベストランでもOK）"><span data-icon="bookmark" data-size="15"></span>基準登録</button>
+            <button class="tool-btn compare-toggle" data-on="false" disabled title="基準フォームを重畳"><span data-icon="layers" data-size="15"></span>基準と重畳</button>
           </div>
 
           <div class="ctrl-group misc">
-            <button class="btn-accent record-btn" title="現在のフォームを記録">● 記録</button>
-            <button class="btn-ghost auto-review" title="動画全体を自動レビュー">🔍 自動レビュー</button>
-            <button class="btn-ghost reload" title="別の動画を読み込む">↺ 変更</button>
+            <button class="btn-accent record-btn" title="現在のフォームを記録"><span data-icon="notebook-pen" data-size="15"></span>記録</button>
+            <button class="btn-ghost auto-review" title="動画全体を自動レビュー"><span data-icon="search" data-size="15"></span>自動レビュー</button>
+            <button class="btn-ghost reload" title="別の動画を読み込む"><span data-icon="rotate-ccw" data-size="15"></span>変更</button>
           </div>
         </div>
 
@@ -200,6 +200,7 @@
     </section>
   </template>
 
+  <script src="vendor/lucide.js"></script>
   <script src="lessons.js"></script>
   <script src="reference.js"></script>
   <script src="training.js"></script>

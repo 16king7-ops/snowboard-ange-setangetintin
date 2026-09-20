@@ -5,6 +5,7 @@
   const DG = globalThis.SETUP_DIAGRAMS;
   if (!DG) return;
   const K = DG.K, ANIMS = {};
+  const ic = (n) => (globalThis.LUCIDE ? LUCIDE.icon(n, { size: 18 }) : "");
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
   // 動きを作るための小物（t は 0〜1）
@@ -44,7 +45,7 @@
     return `<figure class="dg-fig anim" data-anim="${esc(id)}">` +
       `<svg class="dg" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(d.cap || id)}"></svg>` +
       `<div class="anim-ctl">` +
-      `<button type="button" class="anim-play" data-anim-play aria-label="再生">▶</button>` +
+      `<button type="button" class="anim-play" data-anim-play aria-label="再生">${ic("play")}</button>` +
       `<input type="range" class="anim-seek" min="0" max="1000" value="0" step="1" aria-label="コマ送り">` +
       `<span class="anim-phase"></span></div>` +
       (d.cap ? `<figcaption>${esc(d.cap)}</figcaption>` : "") + `</figure>`;
@@ -81,8 +82,8 @@
         if (t === 1 && d.loop === false) return stop();
         raf = requestAnimationFrame(step);
       };
-      const start = () => { playing = true; play.textContent = "⏸"; play.setAttribute("aria-label", "一時停止"); last = performance.now(); raf = requestAnimationFrame(step); };
-      function stop() { playing = false; play.textContent = "▶"; play.setAttribute("aria-label", "再生"); cancelAnimationFrame(raf); }
+      const start = () => { playing = true; play.innerHTML = ic("pause") || "II"; play.setAttribute("aria-label", "一時停止"); last = performance.now(); raf = requestAnimationFrame(step); };
+      function stop() { playing = false; play.innerHTML = ic("play") || ">"; play.setAttribute("aria-label", "再生"); cancelAnimationFrame(raf); }
       play.addEventListener("click", () => (playing ? stop() : start()));
       seek.addEventListener("input", () => { stop(); t = +seek.value / 1000; frame(); });
       // 画面から出たら止める（電池とスクロールのため）

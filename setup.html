@@ -20,19 +20,19 @@
 <body class="su-page">
   <header class="app-header">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true">❄</span>
+      <span class="brand-mark" data-icon="snowflake" data-size="22" aria-hidden="true"></span>
       <h1>バインディング セッティング</h1>
     </div>
     <div class="header-controls">
-      <button class="btn-ghost small" id="print-btn">取り付けシートを印刷</button>
-      <a class="btn-ghost small" href="index.html">フォーム分析へ</a>
+      <button class="btn-ghost small" id="print-btn"><span data-icon="printer" data-size="16"></span>取り付けシートを印刷</button>
+      <a class="btn-ghost small" href="index.html"><span data-icon="camera" data-size="16"></span>フォーム分析へ</a>
     </div>
   </header>
 
   <main class="su">
     <section class="su-hero" aria-labelledby="hero-title">
       <div class="hero-head">
-        <h2 class="hero-title" id="hero-title">いまのセッティング</h2>
+        <h2 class="hero-title" id="hero-title"><span data-icon="sliders-horizontal" data-size="16"></span>いまのセッティング</h2>
         <div class="seg" role="group" aria-label="プリセット">
           <button data-preset="beginner">S字練習</button>
           <button data-preset="runtori">ラントリ</button>
@@ -258,7 +258,7 @@
             <tr data-fig="hip-twist"><td>腰がねじれてしんどくないか</td><td>しんどい（後足のマイナスが深すぎ）</td><td>後足を+3°（マイナスを浅く）</td></tr>
           </table>
         </div>
-        <p class="hint">足首が硬い・股関節が開きにくいと感じたら、角度を変えるだけでなく、フォーム分析アプリの「<a href="index.html#training">🏋️ オフトレ</a>」（足首ストレッチなど）も続けると体が合わせやすくなる <span class="tag tag-b">B</span>。</p>
+        <p class="hint">足首が硬い・股関節が開きにくいと感じたら、角度を変えるだけでなく、フォーム分析アプリの「<a href="index.html#training"><span data-icon="dumbbell" data-size="15"></span> オフトレ</a>」（足首ストレッチなど）も続けると体が合わせやすくなる <span class="tag tag-b">B</span>。</p>
       </section>
       <section class="su-panel">
         <h2>取り付け手順 <span class="hint">今の設定の値が入る</span></h2>
@@ -455,6 +455,7 @@
 
   <section id="print-sheet" aria-hidden="true"></section>
 
+  <script src="vendor/lucide.js"></script>
   <script src="setup-data.js"></script>
   <script src="setup-content.js"></script>
   <script src="setup-diagrams.js"></script>

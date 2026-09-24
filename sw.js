@@ -1,6 +1,6 @@
 // オフラインで開けるようにするサービスワーカー。
 // ファイルを更新して公開するときは VERSION を上げる（上げないと、次に開いたときまで古いファイルが出る）。
-const VERSION = "v9";
+const VERSION = "v10";
 const CACHE = "snowboard-" + VERSION;
 const FILES = [
   "./", "setup.html", "setup.css", "setup.js", "setup-data.js", "setup-content.js", "setup-diagrams.js", "setup-anim.js", "vendor/lucide.js", "vendor/qrcode.js",

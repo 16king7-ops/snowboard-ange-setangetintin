@@ -79,6 +79,15 @@ globalThis.SETUP_CONTENT = {
         { h: "サイズが合っているかの確かめ方", fig: "shell-fit", body: "ライナーを抜いて靴下でシェルに入り、つま先を前に軽く当てて、かかとの後ろに指が何本入るか見る方法がある。1.5〜2本ほどを目安とする解説がある。ライナーを入れて履いたときは、きつめでも痛くない程度が目安。", grade: "C", sources: ["https://www.themountainnerd.com/gear-guides/boots/boot-fit-guide", "https://ridesnowboards.com/en-us/support/how-to-choose-snowboard-boots"] },
         { h: "BOAの締め方・緩め方", fig: "boa-dial", body: "販売店の説明では、ダイヤルを押し込んで回すと締まり、引き上げると緩む。脱ぐときはダイヤルを引いてからブーツの口を広げると楽。", grade: "B", sources: ["https://www.gearwest.com/products/salomon-w25-faction-boa"] },
       ] },
+      { id: "goggle", title: "ゴーグルの選び方", intro: "初めての1つを選ぶときの順番。フィット → レンズの明るさ → 曇り対策 → 予算。", items: [
+        { h: "まず顔とヘルメットに合うか", body: "見え方より先にフィット。顔とのすき間があると、そこから入った空気で曇る。日本のブランド（SWANS、その系列のDICEなど）は日本人の頭の形をもとに作られていて合いやすい。海外ブランドなら「アジアンフィット／ジャパンフィット」の表記があるものを選ぶ。買うときはヘルメットを持って行き、額との間にすき間ができないか確かめる。", grade: "B", sources: ["https://snowhack.net/archives/4959", "https://www.tanabesports.com/article/detail/google_choose-24/"] },
+        { h: "レンズの明るさ（可視光線透過率）", body: "光をどれだけ通すかの数値。カテゴリー0（80%以上）はナイター、1（43〜80%）は悪天候や霧、2（18〜43%）は曇りや日陰、3（8〜18%）は晴天向け。日本のゲレンデは雪や曇りの日が多いので、1枚で済ませるならカテゴリー1〜2（おおよそ20〜50%）が使いやすい。濃い色1枚だけだと、雪の日と夕方に見えなくなる。", grade: "B", sources: ["https://salomon.jp/a/archives/stories-guides/60"] },
+        { h: "レンズの色", body: "ピンクや黄色はコントラストがはっきりして、悪天候で地形の凹凸が見やすい。茶色やグレーは晴天で色の歪みが少ない。偏光レンズは雪面のぎらつきを抑えるが、凍った所が見えにくくなることがある。", grade: "B", sources: ["https://salomon.jp/a/archives/stories-guides/60"] },
+        { h: "1枚で済ませるなら調光レンズ", body: "紫外線に反応して濃さが変わるレンズ。カテゴリー1〜3の範囲で自動的に暗くなったり明るくなったりするので、天気が変わっても付け替えずに済む。そのぶん値段は上がる。予備レンズが付いたモデルを選ぶ手もある。", grade: "B", sources: ["https://salomon.jp/a/archives/stories-guides/60"] },
+        { h: "曇り対策は構造で決まる", body: "レンズが2枚（ダブルレンズ）だと、内側が外気で冷えにくく曇りにくい。ふちのベンチレーションで中の空気が流れ、曇り止めのコーティングも付いている。使い方では、首やおでこに掛けない（汗と体温で曇る）、内側を擦らない（コーティングが落ちる）、帰ったら乾かす、が効く。", grade: "B", sources: ["https://salomon.jp/a/archives/stories-guides/60"] },
+        { h: "メガネをかけたまま使うなら", body: "OTG（Over The Glasses）と書かれたモデルは、厚みがあり、つるを通すすき間がある。メガネのままかけるなら、これを選ぶ。", grade: "B", sources: ["https://salomon.jp/a/archives/stories-guides/60"] },
+        { h: "予算の目安", body: "日本ブランドのエントリーはおおよそ5,000〜12,000円で、ダブルレンズ・曇り止め・アジアンフィットが揃う。15,000〜25,000円あたりで、交換レンズ付きや調光レンズが選べる。3,000円以下の1枚レンズは曇りやすく歪みも出やすいので、初日から視界で困りやすい。", grade: "C", sources: [] },
+      ] },
       { id: "rhythm-fit", title: "RHYTHMをブーツに合わせる", intro: "取り付け手順（「床テスト・取り付け」タブ）の「ブーツに合わせる」の補足。", items: [
         { h: "サイズMの上限", fig: "size-m", body: "サロモン日本公式ではMが26.5〜27.5cm（海外の販売店ではUS6.5〜10とする表もある）。27.5cmは日本公式の表では上限なので、ブーツのかかとがヒールカップの奥に収まるか、ストラップの長さに余裕があるかを最初に確かめる。", grade: "B", sources: ["https://salomon.jp/products/rhythm-rhythm-l476488", "https://www.tactics.com/salomon/rhythm-snowboard-bindings"] },
         { h: "左右を間違えない", fig: "binding-lr", body: "ハイバックとベースが左右非対称なので、逆に付けると足の形に合いにくい。一般にラチェット（バックル）が足の外側に来る向きが目安とされる。本体の左右表記は実物で確かめる。", grade: "C", sources: ["https://salomon.jp/products/rhythm-rhythm-l476488"] },

@@ -4,6 +4,7 @@
 import * as THREE from "./vendor/three.module.min.js";
 import * as G from "./sim-geo.js";
 import { createMuscles } from "./sim-muscles.js";
+import { twistAt } from "./sim-board.js";
 
 const { V, D2R } = G;
 const Q = THREE.Quaternion;
@@ -28,6 +29,8 @@ export const BONES = ["pelvis", "lumbar", "thorax", "neck", "head", "uarmL", "fa
 // 滑走面からくるぶし（足首の関節）まで: 板12mm + バインディング18mm + ソール27mm + 足首の高さ70mm×身長比
 const ankleUp = (k) => 0.057 + 0.07 * k;
 export const BOOT_FWD = 0.0725; // ブーツの中心は足首の関節よりつま先側
+// 足裏で支える3点（足首の関節から。x=外側+、z=つま先向き。m）: 母趾球＝第1中足骨頭、小趾球＝第5中足骨頭、かかと＝踵骨
+export const ZONE = { m1: [-0.021, 0.143], m5: [0.03, 0.125], heel: [0.004, -0.03] };
 
 function basis(y, zHint) {
   const Y = y.clone().normalize(), X = V().crossVectors(Y, zHint).normalize(), Z = V().crossVectors(X, Y);
@@ -90,11 +93,26 @@ export function createRider({ heightCm = 173, massKg = 62 } = {}) {
     const F = {};
     // 足（ブーツ）は板に固定
     for (const side of ["L", "R"]) {
-      const f = feet[side], a = f.ang * D2R;
-      const toe = Zb.clone().multiplyScalar(Math.cos(a)).addScaledVector(Xb, Math.sin(a));
-      const q = basis(Yb, toe);
-      const p = V(f.x, sh.yAt(f.x, s.bend, s.press), 0).applyQuaternion(bq).add(bp).addScaledVector(Yb, ankleUp(k)).addScaledVector(toe, -BOOT_FWD * k);
+      const f = feet[side], a = f.ang * D2R, tw = new Q().setFromAxisAngle(Xb, twistAt(sh, f.x, s.tors));
+      const Yf = Yb.clone().applyQuaternion(tw), toe = Zb.clone().multiplyScalar(Math.cos(a)).addScaledVector(Xb, Math.sin(a)).applyQuaternion(tw);
+      const q = basis(Yf, toe);
+      const p = V(f.x, sh.yAt(f.x, s.bend, s.press), 0).applyQuaternion(bq).add(bp).addScaledVector(Yf, ankleUp(k)).addScaledVector(toe, -BOOT_FWD * k);
       F["foot" + side] = { p, q, toe };
+    }
+    // 転倒中: 骨盤の位置と向きは動きのデータのまま。足が届かないときだけ骨盤を足の方へ寄せる
+    if (s.fall > 0.5) {
+      const P = V(s.ppx, s.ppy, s.ppz), qp = new Q(s.pqx, s.pqy, s.pqz, s.pqw).normalize();
+      let res = fk(P, qp, s, F, st, Xb, Zb);
+      for (let it = 0; it < 4; it++) {
+        const over = Math.max(res.rL, res.rR) - 0.97;
+        if (over <= 0) break;
+        const mid = F.footL.p.clone().add(F.footR.p).multiplyScalar(0.5).sub(P).normalize();
+        P.addScaledVector(mid, over * Lleg);
+        res = fk(P, qp, s, F, st, Xb, Zb);
+      }
+      res.P = P; res.hipRoll = 0;
+      moments(res, st, feet, Xb, Zb);
+      return res;
     }
     // 骨盤の向き: 支える力の向きを「上」、つま先側（前後の足の角度の平均の6割 + ひねり）を「前」
     const face = ((feet.L.ang + feet.R.ang) / 2 * 0.6 + s.pyaw) * D2R;
@@ -139,7 +157,8 @@ export function createRider({ heightCm = 173, massKg = 62 } = {}) {
     const tFwd = ax(qt, 0, 0, 1), side = ax(qt, 1, 0, 0);
     const yaw = Math.atan2(look.dot(side), look.dot(tFwd));
     if (Math.abs(yaw) > 1.55) look = tFwd.clone().multiplyScalar(Math.cos(1.55)).addScaledVector(side, Math.sign(yaw) * Math.sin(1.55));
-    const qh = basis(up.clone().addScaledVector(look, -up.dot(look)), look);
+    // 転倒中は頭を体幹に合わせる（headFlex: +あごを引く／−頭が後ろへ反る）
+    const qh = s.fall > 0.5 ? qt.clone().multiply(rq(s.headFlex || 0, 0, 0)) : basis(up.clone().addScaledVector(look, -up.dot(look)), look);
     const qn = qt.clone().slerp(qh, 0.45);
     F.neck.q = qn;
     F.head = { p: ax(qn, 0, OFF.head.y * k, OFF.head.z * k).add(F.neck.p), q: qh };
@@ -168,7 +187,8 @@ export function createRider({ heightCm = 173, massKg = 62 } = {}) {
     const L1 = OFF.thigh * k, L2 = OFF.shank * k, r = {};
     for (const [side2, sx] of [["L", 1], ["R", -1]]) {
       const H = ax(qp, sx * OFF.hip * k, 0, 0).add(P), A = F["foot" + side2].p;
-      const pole = F["foot" + side2].toe.clone().addScaledVector(Zb, s.kneeDrive).addScaledVector(Xb, (side2 === "L" ? -1 : 1) * s.kneeIn);
+      // 膝の向き（kneeDown は転倒で膝を雪に着くとき、膝を下へ向ける量）
+      const pole = F["foot" + side2].toe.clone().addScaledVector(Zb, s.kneeDrive).addScaledVector(Xb, (side2 === "L" ? -1 : 1) * s.kneeIn).addScaledVector(st.up, -(s.kneeDown || 0));
       const d = A.clone().sub(H), len = d.length(), u = d.clone().divideScalar(len);
       const lc = clamp(len, Math.abs(L1 - L2) + 1e-3, L1 + L2 - 1e-4);
       const a = (L1 * L1 - L2 * L2 + lc * lc) / (2 * lc), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
@@ -190,27 +210,30 @@ export function createRider({ heightCm = 173, massKg = 62 } = {}) {
     const cx = s.cx, xF = feet.L.x, xR = feet.R.x;
     const wF = st.air ? 0 : clamp((cx - xR) / (xF - xR), 0, 1);
     const share = { L: wF, R: 1 - wF };
-    // 板の上の圧の中心 → 各足の中の圧の中心（ブーツの中心から、板に沿った向きでずらす）
-    // 板の圧の中心がエッジにあっても、ブーツとバインディングがねじりを伝えるので、足の中の圧の中心は少し寄るだけ
-    // 目安は、いぐっちゃん。が足圧センサー（MOTION GRAVITY）を着けて滑った実測: トゥ側はかかとがほぼ0で前足部に約9割、ヒール側は前足部がほぼ0でかかとに約9割
-    const hwC = st.sh.hw(cx), side = clamp(s.edge / (10 * D2R), -1, 1);
-    const lean = Math.abs(side) > 0.01 ? side : clamp(s.cz / Math.max(0.01, hwC), -1, 1);
-    const dz = lean > 0 ? 0.058 * lean : 0.085 * lean;
-    const mid = (xF + xR) / 2, sN = clamp((cx - mid) / ((xF - xR) / 2), -1.6, 1.6);
+    // 各足は母趾球・小趾球・かかとの3点で支える。3点への配分が決まると圧の中心（白い点）が決まる（2点で踏めば、その2点の間に来る）。
+    // 配分は、いぐっちゃん。が足圧センサー（MOTION GRAVITY）を着けて滑った実測の傾向:
+    //   前足と後足で踏み方が違う（トーション）。トゥサイドは前足が前足部だけ・後足はかかとも残る。ヒールサイドは前足に前足部が残り・後足はかかとだけ。
+    //   板がフラットな切り替えは両足とも3点。前足部の中は母趾球：小趾球 ≒ 1.8：1。
+    const side = clamp(s.edge / (10 * D2R), -1, 1);
+    const lean = Math.abs(side) > 0.01 ? side : clamp(s.cz / Math.max(0.01, st.sh.hw(cx)), -1, 1);
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const toeOf = { L: lean >= 0 ? lerp(0.5, 0.9, lean) : lerp(0.5, 0.4, -lean), R: lean >= 0 ? lerp(0.5, 0.64, lean) : lerp(0.5, 0.07, -lean) };
+    const mid = (xF + xR) / 2, sN = clamp((cx - mid) / ((xF - xR) / 2), -1.5, 1.5);
     const act = {}, foot = {}, ang = {};
     for (const sd of ["L", "R"]) {
-      const f = feet[sd], a = f.ang * D2R;
-      let dx = 0.03 * sN;
-      if (sd === "R" && cx < xR) dx -= Math.min(0.03, (xR - cx) * 0.15);
-      if (sd === "L" && cx > xF) dx += Math.min(0.03, (cx - xF) * 0.15);
-      const zL = clamp(dz * Math.cos(a) + dx * Math.sin(a), -0.13, 0.13), xL = clamp(dx * Math.cos(a) - dz * Math.sin(a), -0.045, 0.045);
-      const fr = F["foot" + sd], P = ax(fr.q, xL * k, -0.097 * k, (BOOT_FWD + zL) * k).add(fr.p);
+      const sx = sd === "L" ? 1 : -1, toe = toeOf[sd];
+      // ノーズ側へ乗ると、前足は小趾球側（ノーズ側）、後足は母趾球側（ノーズ側）が増える
+      const med = clamp(0.64 - sx * 0.1 * sN, 0.35, 0.85);
+      const zones = { m1: toe * med, m5: toe * (1 - med), heel: 1 - toe };
+      let xL = 0, zA = 0;
+      for (const [z, w] of Object.entries(zones)) { xL += ZONE[z][0] * sx * w; zA += ZONE[z][1] * w; }
+      const fr = F["foot" + sd], P = ax(fr.q, xL * k, -0.097 * k, zA * k).add(fr.p);
       const Fi = Ft.clone().multiplyScalar(share[sd]);
-      foot[sd] = { share: share[sd], load: Fi.length() / gN, u: zL, v: xL, P };
+      foot[sd] = { share: share[sd], load: Fi.length() / gN, u: zA - BOOT_FWD, v: xL, P, zones };
       const K = F["shank" + sd].p, H = F["thigh" + sd].p, A = fr.p;
       const Mk = P.clone().sub(K).cross(Fi), Mh = P.clone().sub(H).cross(Fi), Ma = P.clone().sub(A).cross(Fi);
       const kx = Mk.dot(ax(F["thigh" + sd].q, 1, 0, 0)), hx = Mh.dot(ax(F.pelvis.q, 1, 0, 0)), hz = Mh.dot(ax(F.pelvis.q, 0, 0, 1)), axx = Ma.dot(ax(fr.q, 1, 0, 0));
-      const sx = sd === "L" ? 1 : -1, ref = mass * 1.1;
+      const ref = mass * 1.1;
       act["quad" + sd] = Math.max(0, kx) / ref;
       act["glute" + sd] = Math.max(0, -hx) / ref;
       act["ham" + sd] = Math.max(0, -kx) / ref * 0.6 + act["glute" + sd] * 0.5;

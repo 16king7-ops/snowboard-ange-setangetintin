@@ -12,6 +12,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 export const BASE = {
   ext: 0.9, lean: 12, twist: 10, pyaw: 0, roll: 0, sbend: 0, kneeDrive: 0.15, kneeIn: 0.1,
   aLf: 25, aLa: 30, aLe: 35, aRf: 18, aRa: 25, aRe: 35, lookYaw: 0, lookDown: 12,
+  tors: 0, kneeDown: 0, fall: 0, fdir: 0, fzx: 0, fzz: 0, ppx: 0, ppy: 0, ppz: 0, pqx: 0, pqy: 0, pqz: 0, pqw: 1, headFlex: 0,
   p: 0, touchL: 0, touchR: 0, cx: 0, cxb: null, cz: 0, edge: 0, pitch: 0, bend: 0, press: 0, tuck: 0, air: 0, spray: 0, trail: 0.02, carve: 0,
 };
 export const NUM_KEYS = Object.keys(BASE).filter((k) => k !== "cxb").concat(["t", "x", "z", "psi", "bpsi", "v", "ax", "ay", "az", "cxb"]);
@@ -63,6 +64,8 @@ function turns(o) {
         o.pose(s, p, dir, env, sh);
         if (m) m.pose(s, p, dir, sh);
         s.p = p;
+        // トーション（度）: 前足の位置で板がこれだけつま先側へ多く傾く（後足の位置では逆）。エッジを立てているときに前足が先行する（足圧センサーの実測の傾向）
+        s.tors = 4 * Math.min(1, Math.abs(s.edge) / (10 * D2R));
         s.bend = carve ? sh.carveBend(th) * 0.95 : 0;
         s.carve = carve ? 1 : 0;
         s.trail = carve ? 0.035 : 0.06 + sh.L * Math.sin(beta) * 0.75;
@@ -70,6 +73,12 @@ function turns(o) {
         s.turn = dir;
         s.ph = o.phase(p, dir);
         out.push(s);
+        // 転ぶ間違い（S字）: 決めた側のターンの決めた所で転倒に入る（3つ目のターン以降）
+        const fl = m && o.falls && FALLS[m.fall];
+        if (fl && n >= 2 && dir === fl.dir && p >= fl.p) {
+          const extra = fallSeq(ctx, s, fl, v, psi);
+          return { samples: out.concat(extra), slope: o.slope, extraPhases: [{ name: "転倒：" + fl.name, text: fl.what, sub: "けがを防ぐには: " + fl.safety }] };
+        }
       }
       p += Math.max(Math.abs(psiDot) / span, 1 / minT) * DT;
       psi += psiDot * DT;
@@ -323,8 +332,8 @@ export const MOTIONS = [
       { name: "かかと側に乗る", text: "ハイバックにふくらはぎを預け、かかと側のエッジを少し立てる。圧はかかとへ。つま先を少し引き上げる。" },
     ] },
   { id: "slide", slope: 12, name: "S字ターン（ずらし）", desc: "板を少しずらしてスピードを調整する、いちばん基本の連続ターン（約15km/h）。",
-    pose: slidePose, mistakes: true,
-    gen: turns({ slope: 12, v0: 4.2, mu: 0.14, muGain: 0.12, H: 52, edgeToe: 20, edgeHeel: 16, R: 6.2, skid: 24, count: 5, minT: 3, carve: false, pose: slidePose, phase: phaseIndex([0, 0.12, 0.32, 0.62], 0.92) }),
+    pose: slidePose, mistakes: true, falls: true,
+    gen: turns({ falls: true, slope: 12, v0: 4.2, mu: 0.14, muGain: 0.12, H: 52, edgeToe: 20, edgeHeel: 16, R: 6.2, skid: 24, count: 5, minT: 3, carve: false, pose: slidePose, phase: phaseIndex([0, 0.12, 0.32, 0.62], 0.92) }),
     phases: sidePhases(S_PH) },
   { id: "carve", slope: 14, name: "カービング", desc: "板をずらさず、エッジで雪を切って曲がる（約23km/h）。ターン半径 = サイドカット半径 × cos(エッジ角)。",
     pose: carvePose, mistakes: true,
@@ -412,3 +421,81 @@ export const MISTAKES = [
     fix: "目線を進行方向に送り続け、ターンの出口を先に見る。",
     pose(s, p, dir) { s.lookDown = 58; s.lookYaw = -dir * 12; s.twist -= 14 * lead(p, dir); } },
 ];
+
+// ---------- 転倒（S字で間違えたとき） ----------
+// 東海オンエア「【大ブレイク】3回転んだらスノボ終了！」の転倒を0.1秒ずつ見た流れと、物理（エッジが外れる→ターンの内側へゆっくり、
+// 谷側のエッジが引っかかる＝逆エッジ→外側へ速く）をもとにした。値は「転倒が始まった瞬間の板」を基準にした座標
+// （x=板の長さ方向、y=斜面の法線、z=つま先側、m・度）。pelvis は骨盤の位置、tilt は骨盤の前(+)・後ろ(−)への倒れ。
+const TOKAI = (t, label) => [`東海オンエア「【大ブレイク】3回転んだらスノボ終了！」${label}`, YT("w70hKDuZbJk", t)];
+export const FALLS = {
+  sit: { name: "尻もち（後ろへ転がる）", dir: 1, p: 0.55, fdir: -1, dur: 2.8, tauD: 0.8, impact: 0.5, src: [TOKAI(498, "8:18（ゆめまる）"), TOKAI(990, "16:30（りょう）")],
+    what: "後ろ足に乗ったまま、かかと側のエッジが外れて板が前へ抜ける。重心が板の後ろに残るので約0.5秒でお尻から落ち、勢いで背中まで転がって板が上がる。",
+    safety: "お尻から落ちて、手はつかない（手首のけが）。あごを引いて頭を守る。ヘルメットを着ける。",
+    k: {
+      py: [[0.25, 0.55], [0.5, 0.15], [0.9, 0.12]], pz: [[0.25, -0.22], [0.5, -0.45], [0.9, -0.5]], tilt: [[0.25, -20], [0.5, -35], [0.9, -95], [1.6, -88]],
+      bx: [[0.3, 0.25], [0.9, 0.2]], by: [[0.5, 0], [0.85, 0.45], [1.2, 0.5], [1.7, 0.02]], bz: [[0.5, 0.05], [0.9, -0.2], [1.7, -0.05]], roll: [[0.3, -12], [0.5, -5], [0.85, -100], [1.2, -110], [1.7, -35]],
+      lean: [[0.3, 25], [0.6, 30], [1.0, 10]], aLf: [[0.2, 95], [0.45, -35], [1.0, 20]], aRf: [[0.2, 95], [0.45, -35], [1.0, 20]], aLa: [[0.2, 30], [0.45, 30], [1.0, 80]], aRa: [[0.2, 30], [0.45, 30], [1.0, 80]],
+      aLe: [[0.2, 20], [0.45, 10], [1.0, 30]], aRe: [[0.2, 20], [0.45, 10], [1.0, 30]], touchL: [[0.3, 0], [0.45, 1], [0.75, 1], [1.0, 0]], touchR: [[0.3, 0], [0.45, 1], [0.75, 1], [1.0, 0]], headFlex: [[0.4, 0], [0.7, 35]],
+    } },
+  forward: { name: "逆エッジで前へ（うつ伏せ）", dir: 1, p: 0.9, fdir: 1, dur: 2.4, tauD: 0.35, impact: 0.55, src: [TOKAI(386, "6:27（としみつ）")],
+    what: "ターンの終わりに板が横を向いたままフラットになり、谷側（進行方向側）のつま先のエッジが雪に引っかかる。板が急に止まり、体だけが前へ投げ出されて約0.6秒でうつ伏せになる。",
+    safety: "手のひらだけで受けず、前腕で受ける。膝を曲げて低くなってから倒れる。",
+    k: {
+      py: [[0.25, 0.55], [0.55, 0.16], [0.8, 0.12]], pz: [[0.25, 0.3], [0.55, 0.62], [0.8, 0.68]], tilt: [[0.25, 35], [0.55, 80], [0.8, 88]],
+      yaw: [[0.12, 25]], roll: [[0.12, 22], [0.5, 40], [1.2, 30]], bz: [[0.5, -0.05]],
+      lean: [[0.3, 15], [0.8, 5]], aLf: [[0.2, 80], [0.55, 70], [1.0, 60]], aRf: [[0.2, 80], [0.55, 70], [1.0, 60]], aLa: [[0.3, 20], [1.0, 40]], aRa: [[0.3, 20], [1.0, 40]],
+      aLe: [[0.3, 10], [1.0, 60]], aRe: [[0.3, 10], [1.0, 60]], touchL: [[0.2, 0], [0.4, 1], [0.8, 1], [1.2, 0.6]], touchR: [[0.2, 0], [0.4, 1], [0.8, 1], [1.2, 0.6]], headFlex: [[0.4, -15]],
+    } },
+  slam: { name: "逆エッジで後ろへ叩きつけられる", dir: -1, p: 0.9, fdir: -1, dur: 2.4, tauD: 0.3, impact: 0.33, src: [TOKAI(990, "16:30（りょう：伸び上がって腕が上がり、後ろへ）")],
+    what: "伸びきったまま板がフラットになり、谷側（背中側）のかかとのエッジが引っかかる。板が急に止まり、体が背中から叩きつけられる。いちばん速く（約0.3秒）、後頭部を打ちやすい。",
+    safety: "あごを引いて背中を丸める。ヘルメットは必須。平らな所を滑るときも膝を曲げ、どちらかのエッジを少し立てておく。",
+    k: {
+      py: [[0.18, 0.55], [0.33, 0.14], [0.6, 0.12]], pz: [[0.18, -0.3], [0.33, -0.55], [0.6, -0.6]], tilt: [[0.18, -40], [0.33, -88], [0.6, -92]],
+      yaw: [[0.1, -15]], roll: [[0.1, -22], [0.33, -30], [0.5, -60], [0.8, -30]], by: [[0.33, 0], [0.5, 0.2], [0.8, 0.02]],
+      lean: [[0.2, 0], [0.5, 15]], aLf: [[0.15, 110], [0.35, 60], [0.8, 20]], aRf: [[0.15, 110], [0.35, 60], [0.8, 20]], aLa: [[0.15, 40], [0.35, 70], [0.8, 85]], aRa: [[0.15, 40], [0.35, 70], [0.8, 85]],
+      headFlex: [[0.3, -25], [0.45, -10], [0.8, 10]],
+    } },
+  knees: { name: "エッジが外れて膝をつく", dir: -1, p: 0.55, fdir: 1, dur: 2.2, tauD: 0.7, impact: 0.55, src: [TOKAI(810, "13:30（てつや）")],
+    what: "肩だけ回して板がずれ、トゥサイドのエッジが外れる。板が谷側へ滑り、体は山側（つま先側）へ倒れて膝と手をつく。遅ければ比較的安全。",
+    safety: "膝と手をついたら、そのまま体を起こしてやり直す。手首を痛めないよう、手をついたら肘を曲げる。",
+    k: {
+      py: [[0.3, 0.62], [0.6, 0.52]], pz: [[0.3, 0.15], [0.6, 0.3]], tilt: [[0.3, 12], [0.6, 18]], kneeDown: [[0.25, 0], [0.5, 2.5]],
+      roll: [[0.3, 8], [0.6, 5]], bz: [[0.4, -0.2], [0.8, -0.25]],
+      lean: [[0.3, 20], [0.6, 30]], aLf: [[0.3, 60], [0.6, 55]], aRf: [[0.3, 60], [0.6, 55]], touchL: [[0.25, 0], [0.5, 1]], touchR: [[0.25, 0], [0.5, 1]],
+    } },
+};
+// 間違いと転び方の対応
+const FALL_OF = { back: "sit", hips: "sit", kick: "forward", eyes: "forward", stiff: "slam", shoulder: "knees" };
+for (const m of MISTAKES) m.fall = FALL_OF[m.id];
+
+// 転倒の動き: 板と骨盤の位置・向きをキーフレームで動かす（体全体は減速しながら滑る）。骨盤の最初の値はバランスで解いた姿勢から始める
+function fallSeq(ctx, s0, fl, v0, psi0) {
+  const out = [], step = DT * EVERY, X = [Math.sin(s0.bpsi), Math.cos(s0.bpsi)], Z = [-Math.cos(s0.bpsi), Math.sin(s0.bpsi)];
+  const pel = ctx.pelvisAt(s0), rel = [pel.P.x - s0.x, pel.P.z - s0.z];
+  const p0 = { px: rel[0] * X[0] + rel[1] * X[1], py: pel.P.y, pz: rel[0] * Z[0] + rel[1] * Z[1] };
+  const ax = { x: X[0], y: 0, z: X[1] };
+  const track = (name, def) => { const k = fl.k[name]; return k ? [[0, def]].concat(k) : null; };
+  const T = {};
+  for (const [name, def] of [["px", p0.px], ["py", p0.py], ["pz", p0.pz], ["tilt", 0], ["bx", 0], ["by", 0], ["bz", 0], ["roll", s0.edge / D2R], ["yaw", 0],
+    ["lean", s0.lean], ["aLf", s0.aLf], ["aRf", s0.aRf], ["aLa", s0.aLa], ["aRa", s0.aRa], ["aLe", s0.aLe], ["aRe", s0.aRe], ["touchL", 0], ["touchR", 0], ["headFlex", 0], ["kneeDown", 0]]) T[name] = track(name, def) || [[0, def]];
+  for (let tau = step; tau <= fl.dur; tau += step) {
+    const g = (n) => kf(T[n], tau), slide = v0 * fl.tauD * (1 - Math.exp(-tau / fl.tauD));
+    const ox = s0.x + Math.sin(psi0) * slide, oz = s0.z + Math.cos(psi0) * slide;
+    const s = { ...s0, t: s0.t + tau, fall: 1, fdir: fl.fdir, fzx: Z[0], fzz: Z[1], ph: ctx.phaseBase, p: 1, turn: s0.turn };
+    s.v = v0 * Math.exp(-tau / fl.tauD); s.ax = s.az = s.ay = 0;
+    s.x = ox + X[0] * g("bx") + Z[0] * g("bz"); s.z = oz + X[1] * g("bx") + Z[1] * g("bz");
+    s.air = g("by"); s.bpsi = s0.bpsi + g("yaw") * D2R; s.edge = g("roll") * D2R; s.pitch = 0; s.bend = 0; s.carve = 0;
+    s.ppx = ox + X[0] * g("px") + Z[0] * g("pz"); s.ppy = g("py"); s.ppz = oz + X[1] * g("px") + Z[1] * g("pz");
+    const q = qAxis(ax, g("tilt") * D2R, pel.q);
+    s.pqx = q[0]; s.pqy = q[1]; s.pqz = q[2]; s.pqw = q[3];
+    for (const n of ["lean", "aLf", "aRf", "aLa", "aRa", "aLe", "aRe", "touchL", "touchR", "headFlex", "kneeDown"]) s[n] = g(n);
+    s.trail = tau > fl.impact ? 0.5 : s0.trail; s.spray = tau > fl.impact && tau < fl.impact + 0.15 ? 1 : 0;
+    out.push(s);
+  }
+  return out;
+}
+// 軸 a（単位ベクトル）まわりに角度 th 回す回転を、クォータニオン q の前に掛ける
+function qAxis(a, th, q) {
+  const s = Math.sin(th / 2), r = [a.x * s, a.y * s, a.z * s, Math.cos(th / 2)];
+  return [r[3] * q.x + r[0] * q.w + r[1] * q.z - r[2] * q.y, r[3] * q.y - r[0] * q.z + r[1] * q.w + r[2] * q.x, r[3] * q.z + r[0] * q.y - r[1] * q.x + r[2] * q.w, r[3] * q.w - r[0] * q.x - r[1] * q.y - r[2] * q.z];
+}

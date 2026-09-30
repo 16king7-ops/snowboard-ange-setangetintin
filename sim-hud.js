@@ -1,6 +1,6 @@
 // sim-hud.js — 足裏の圧（上から透かして見た図）と、体勢の数値。
 import { D2R } from "./sim-geo.js";
-import { BOOT_FWD } from "./sim-body.js";
+import { BOOT_FWD, ZONE } from "./sim-body.js";
 
 // 足の中の形（足首の関節が原点、z=つま先向き、x=ノーズ側）。インソールの輪郭（m）
 const INSOLE = [[0, -0.055], [0.022, -0.05], [0.03, -0.02], [0.028, 0.04], [0.042, 0.1], [0.046, 0.14], [0.04, 0.18], [0.025, 0.205], [0, 0.212], [-0.02, 0.21], [-0.038, 0.19], [-0.048, 0.15], [-0.04, 0.1], [-0.022, 0.05], [-0.026, -0.02], [-0.02, -0.05]];
@@ -61,15 +61,14 @@ export function createSoles(canvas, sh, k) {
       const ft = res.foot[sd], path = (pts) => { ctx.beginPath(); pts.forEach(([x, z], i) => { const [px, py] = P(...toBoard(sd, x, z)); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.closePath(); };
       path(BOOT); ctx.fillStyle = "rgba(20,22,26,.8)"; ctx.fill();
       ctx.save(); path(insole(sd)); ctx.clip();
-      // 圧の分布: かかとと母趾球が高い足の形 × 圧の中心のまわりの広がり × その足の荷重
-      const load = air ? 0 : ft.load, uc = ft.u + BOOT_FWD, vc = ft.v;
-      const step = 0.0065, med = (x) => (sd === "L" ? x < 0 : x > 0), zone = [0, 0, 0];
+      // 圧の分布: 母趾球・小趾球・かかとの3点それぞれに山を描く（2点で踏めば山が2つ）。指先も少し受ける
+      const uc = ft.u + BOOT_FWD, vc = ft.v, sx = sd === "L" ? 1 : -1, zs = ft.zones || { m1: 0, m5: 0, heel: 0 }, bw = air ? 0 : ft.share * ft.load / Math.max(0.01, ft.share || 1);
+      const blobs = [[ZONE.m1, zs.m1, 0.022], [ZONE.m5, zs.m5, 0.021], [ZONE.heel, zs.heel, 0.028], [[-0.024, 0.192], zs.m1 * 0.35, 0.013], [[0.018, 0.172], zs.m5 * 0.3, 0.016]];
+      const step = 0.0055;
       for (let z = -0.06; z <= 0.215; z += step) for (let x = -0.05; x <= 0.05; x += step) {
-        // 足の形の重み: かかとと前足部が高く、土踏まずは低い。前足部は母趾球側が小趾球側のおよそ2倍（足圧センサーの実測: 431対185、488対210）
-        const base = 0.55 + 0.45 * Math.exp(-(((z + 0.03) / 0.035) ** 2)) + 0.5 * Math.exp(-(((z - 0.145) / 0.035) ** 2)) * (med(x) ? 1.5 : 0.7) - 0.35 * Math.exp(-(((z - 0.06) / 0.04) ** 2)) * (med(x) ? 1 : 0.2);
-        const g = Math.exp(-(((z - uc) / 0.065) ** 2) - (((x - vc) / 0.05) ** 2));
-        const val = load * base * g * 0.9;
-        if (z > 0.09) zone[med(x) ? 0 : 1] += val; else if (z < 0.04) zone[2] += val;
+        let v = 0;
+        for (const [[bx, bz], w, sg] of blobs) v += w * Math.exp(-(((x - bx * sx) ** 2 + (z - bz) ** 2) / (sg * sg)));
+        const val = v * (air ? 0 : ft.share) * (ft.load / Math.max(0.01, ft.share)) / 0.35;
         const [a, b] = P(...toBoard(sd, x, z));
         ctx.fillStyle = ramp(val); ctx.globalAlpha = 0.25 + 0.75 * Math.min(1, val * 3);
         ctx.fillRect(a - step * sc * 0.6, b - step * sc * 0.6, step * sc * 1.25, step * sc * 1.25);
@@ -77,8 +76,8 @@ export function createSoles(canvas, sh, k) {
       ctx.restore(); ctx.globalAlpha = 1;
       path(insole(sd)); ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1; ctx.stroke();
       // 母趾球・小趾球・かかとの割合（体重に対する%。圧力インソールのアプリの表示にならう）
-      if (!air && load > 0.02) {
-        const tot = zone[0] + zone[1] + zone[2] || 1, pct = zone.map((v) => Math.round((v / tot) * ft.share * 100));
+      if (!air && ft.share > 0.02) {
+        const pct = [zs.m1, zs.m5, zs.heel].map((w) => Math.round(w * ft.share * 100));
         ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#fff";
         for (const [k, x, z] of [[0, sd === "L" ? -0.07 : 0.07, 0.15], [1, sd === "L" ? 0.07 : -0.07, 0.15], [2, 0, -0.1]]) {
           const [tx, ty] = P(...toBoard(sd, x, z)); ctx.fillText(pct[k], tx, ty + 3);
@@ -88,7 +87,8 @@ export function createSoles(canvas, sh, k) {
       const [px, py] = P(...toBoard(sd, vc, uc));
       const tr = trail[sd]; tr.push([px, py]); if (tr.length > 40) tr.shift();
       ctx.beginPath(); tr.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.strokeStyle = "rgba(255,255,255,.7)"; ctx.lineWidth = 1.5; ctx.stroke();
-      if (!air && load > 0.02) { ctx.beginPath(); ctx.arc(px, py, 4.5, 0, 7); ctx.fillStyle = "#fff"; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = "#111"; ctx.stroke(); }
+      // 白い点は3点の圧の平均（圧の中心）。2点で踏んでいるときはその間に来て、そこ自体に圧があるわけではない
+      if (!air && ft.share > 0.02) { ctx.beginPath(); ctx.arc(px, py, 3, 0, 7); ctx.fillStyle = "#fff"; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = "#111"; ctx.stroke(); }
     }
     // 板全体の圧の中心
     if (!air) {
@@ -104,7 +104,8 @@ export function createSoles(canvas, sh, k) {
 export function readouts(res, st, extra) {
   const f = (v, d = 0) => (Number.isFinite(v) ? (Math.abs(v) < 0.5 && d === 0 ? "0" : v.toFixed(d)) : "—");
   const { ang, foot } = res, air = st.air, md = extra.model;
-  const pF = Math.round(foot.L.share * 100), tF = Math.round(toeShare(foot.L.u + BOOT_FWD) * 100), tR = Math.round(toeShare(foot.R.u + BOOT_FWD) * 100);
+  const toeP = (f) => Math.round(((f.zones?.m1 || 0) + (f.zones?.m5 || 0)) * 100);
+  const pF = Math.round(foot.L.share * 100), tF = toeP(foot.L), tR = toeP(foot.R);
   // 間違いの例を見ているときは、お手本（同じ瞬間の正しい姿勢）の値を下に添える
   const cmp = (v, fn) => (md ? `${v}<small class="model">お手本 ${fn(md)}</small>` : v);
   const mP = (r) => Math.round(r.foot.L.share * 100);
@@ -116,7 +117,7 @@ export function readouts(res, st, extra) {
     ["体の傾き（内傾）", `${f(extra.incl)}°`],
     ["くの字（エッジ角と内傾の差）", `${f(Math.abs(st.s.edge) / D2R - extra.incl)}°`],
     ["前足：後足", air ? "—" : cmp(`${pF} : ${100 - pF}`, (r) => `${mP(r)} : ${100 - mP(r)}`)],
-    ["つま先の割合 前/後", air ? "—" : cmp(`${tF}% / ${tR}%`, (r) => `${Math.round(toeShare(r.foot.L.u + BOOT_FWD) * 100)}% / ${Math.round(toeShare(r.foot.R.u + BOOT_FWD) * 100)}%`)],
+    ["前足部（母趾球＋小趾球）の割合 前/後", air ? "—" : cmp(`${tF}% / ${tR}%`, (r) => `${toeP(r.foot.L)}% / ${toeP(r.foot.R)}%`)],
     ["膝の曲がり 前/後", cmp(`${f(ang.kneeL)}° / ${f(ang.kneeR)}°`, (r) => `${f(r.ang.kneeL)}° / ${f(r.ang.kneeR)}°`)],
     ["股関節の曲がり 前/後", cmp(`${f(ang.hipL)}° / ${f(ang.hipR)}°`, (r) => `${f(r.ang.hipL)}° / ${f(r.ang.hipR)}°`)],
     ["足首の前傾 前/後", cmp(`${f(ang.ankleL)}° / ${f(ang.ankleR)}°`, (r) => `${f(r.ang.ankleL)}° / ${f(r.ang.ankleR)}°`)],

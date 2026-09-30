@@ -3,7 +3,7 @@ import * as THREE from "./vendor/three.module.min.js";
 import { V, D2R } from "./sim-geo.js";
 import { createRider } from "./sim-body.js";
 import { boardShape, boardLift, createBoard } from "./sim-board.js";
-import { MOTIONS, MISTAKES, finalize, sampleAt } from "./sim-motion.js";
+import { MOTIONS, MISTAKES, FALLS, finalize, sampleAt } from "./sim-motion.js";
 import { createWorld, createTrail, createSpray } from "./sim-world.js";
 import { createSoles, readouts, RAMP_CSS } from "./sim-hud.js";
 import { ACT_STOPS } from "./sim-muscles.js";
@@ -49,6 +49,11 @@ world.slope.add(rider.root, board.group);
 rider.root.traverse((o) => o.layers.enable(1));
 board.group.traverse((o) => o.layers.enable(1));
 const trail = createTrail(world.slope), spray = createSpray(world.slope);
+// お手本の2人目（S字で転ぶ間違いを選んだとき、画面を分けて並べる）
+const riderB = createRider({ heightCm: +SET.rd.height || 173, massKg: +SET.rd.weight || 62 }), boardB = createBoard(sh), trailB = createTrail(world.slope);
+world.slope.add(riderB.root, boardB.group);
+riderB.root.visible = boardB.group.visible = trailB.mesh.visible = false;
+let M2 = null;
 
 // ---------- 重心・力・角度の表示 ----------
 function label() {
@@ -96,7 +101,7 @@ const Yax = V(0, 1, 0), Xax = V(1, 0, 0), Zax = V(0, 0, 1);
 function stateAt(s) {
   const bq = new THREE.Quaternion().setFromAxisAngle(Yax, s.bpsi - Math.PI / 2)
     .multiply(new THREE.Quaternion().setFromAxisAngle(Xax, s.edge)).multiply(new THREE.Quaternion().setFromAxisAngle(Zax, s.pitch));
-  const air = s.airborne ? 1 : 0;
+  const air = s.airborne || s.fall > 0.5 ? 1 : 0; // 空中と転倒中は足裏で支えていない
   const bp = V(s.x, boardLift(sh, bq, s) + (s.air || 0), s.z);
   const gv = V(0, -G * Math.cos(slopeA), G * Math.sin(slopeA));
   const acc = V(s.ax, s.ay, s.az);
@@ -111,45 +116,60 @@ function stateAt(s) {
   const look = V(Math.sin(s.psi + ly), 0, Math.cos(s.psi + ly)).multiplyScalar(Math.cos(ld)).addScaledVector(up, -Math.sin(ld)).normalize();
   // 手を雪に着く目標: 圧の中心から板の横方向にターンの内側へ約0.5m（前の手はノーズ寄り、後ろの手はテール寄り）
   let hands = null;
-  if (s.touchL > 0.001 || s.touchR > 0.001) {
+  if (s.fall > 0.5 && (s.touchL > 0.001 || s.touchR > 0.001)) {
+    // 転倒中は倒れる側の雪に手をつく
+    const zx = s.fzx * s.fdir, zz = s.fzz * s.fdir, at = (dx) => V(s.ppx + zx * 0.5 + s.fzz * dx, 0.04, s.ppz + zz * 0.5 - s.fzx * dx);
+    hands = { L: at(0.22), R: at(-0.22) };
+  } else if (s.touchL > 0.001 || s.touchR > 0.001) {
     const Xb = Xax.clone().applyQuaternion(bq), Zb = Zax.clone().applyQuaternion(bq), inward = Zb.clone().multiplyScalar(Math.sign(s.edge) || 1).setY(0).normalize(), c = onBoard(s.cx);
     const at = (dx) => c.clone().addScaledVector(inward, 0.5).addScaledVector(Xb.clone().setY(0).normalize(), dx).setY(0.05);
     hands = { L: at(0.22), R: at(-0.15) };
   }
   return { s, bq, bp, sh, n, C: onBoard(s.cxb ?? s.cx), Cp: onBoard(s.cx), F, air, up, look, gv, acc, hands };
 }
-const comOff = (s) => rider.pose(stateAt({ ...s, air: 0, airborne: 0, ay: 0 })).com.y;
+const comOff = (s) => rider.pose(stateAt({ ...s, air: s.fall > 0.5 ? s.air : 0, airborne: 0, ay: 0 })).com.y;
+const pelvisAt = (s) => { const r = rider.pose(stateAt(s)); return { P: r.P, q: r.F.pelvis.q }; };
 
 function loadMotion(id, mid = "") {
   const def = MOTIONS.find((m) => m.id === id) || MOTIONS[0];
   const mistake = def.mistakes ? MISTAKES.find((m) => m.id === mid) || null : null;
   slopeA = def.slope * D2R;
-  const raw = def.gen({ sh, comOff, mistake });
+  const ctx = { sh, comOff, pelvisAt, phaseBase: def.phases.length };
+  const raw = def.gen({ ...ctx, mistake });
   M = finalize(raw, { comOff });
-  M.def = def; M.mistake = mistake;
+  M.def = def; M.mistake = mistake; M.phases = def.phases.concat(raw.extraPhases || []);
+  // S字で転ぶ間違いのときは、転ばないお手本も作って並べる
+  M2 = def.falls && mistake ? finalize(def.gen(ctx), { comOff }) : null;
+  if (M2) buildTrail(M2, trailB);
   showMistake();
   world.setSlope(raw.slope);
   // 跡と雪煙
-  const pts = [], src = [];
+  const src = [];
+  buildTrail(M, trail);
   for (const s of M.samples) {
-    const st = stateAt(s), e = Math.abs(s.edge) / D2R, c = st.Cp;
-    const kind = s.carve && e > 8 ? 2 : e > 3 && !s.carve ? 1 : 0;
-    pts.push({ x: kind === 2 ? c.x : s.x, z: kind === 2 ? c.z : s.z, w: s.airborne ? 0 : (s.trail || 0.02) / 2, kind });
+    const st = stateAt(s), c = st.Cp;
     if (s.spray > 0.02 && !s.airborne) {
       const lat = V(s.ax, 0, s.az), l = lat.length(), fx = Math.sin(s.psi), fz = Math.cos(s.psi);
       src.push({ t: s.t, x: c.x, y: 0, z: c.z, ox: l > 0.3 ? -lat.x / l : 0, oz: l > 0.3 ? -lat.z / l : 0, fx, fz, v: s.v, amount: s.spray });
     }
   }
-  trail.build(pts);
   spray.build(src, [0, -G * Math.cos(slopeA), G * Math.sin(slopeA)]);
   // 場面の帯
   const runs = [];
   for (const s of M.samples) { const r = runs[runs.length - 1]; if (!r || r.ph !== s.ph) runs.push({ ph: s.ph, t0: s.t, t1: s.t }); else r.t1 = s.t; }
-  $("strip").innerHTML = runs.map((r) => `<button style="left:${(r.t0 / M.dur) * 100}%;width:${((r.t1 - r.t0) / M.dur) * 100}%;--h:${(r.ph * 47) % 360}" data-t="${r.t0}" title="${def.phases[r.ph]?.name ?? ""}"></button>`).join("");
+  $("strip").innerHTML = runs.map((r) => `<button style="left:${(r.t0 / M.dur) * 100}%;width:${((r.t1 - r.t0) / M.dur) * 100}%;--h:${(r.ph * 47) % 360}" data-t="${r.t0}" title="${M.phases[r.ph]?.name ?? ""}"></button>`).join("");
   $("motion-desc").textContent = def.desc;
   T = 0; soles.reset(); lastPh = -1;
   const h = def.id + (mistake ? "/" + mistake.id : "");
   if (location.hash.slice(1) !== h) history.replaceState(null, "", "#" + h);
+}
+
+function buildTrail(Mx, tr) {
+  tr.build(Mx.samples.map((s) => {
+    const st = stateAt(s), e = Math.abs(s.edge) / D2R, c = st.Cp, fall = s.fall > 0.5;
+    const kind = fall ? 1 : s.carve && e > 8 ? 2 : e > 3 && !s.carve ? 1 : 0;
+    return { x: kind === 2 ? c.x : fall ? s.ppx : s.x, z: kind === 2 ? c.z : fall ? s.ppz : s.z, w: s.airborne ? 0 : (s.trail || 0.02) / 2, kind };
+  }));
 }
 
 // ---------- よくある間違いとお手本 ----------
@@ -160,8 +180,13 @@ function showMistake() {
   $("mistake").value = m ? m.id : "";
   $("mistake-card").innerHTML = m ? `<dl><dt>見た目</dt><dd>${esc(m.look)}</dd><dt>何が起きるか</dt><dd>${esc(m.what)}</dd><dt>直し方</dt><dd>${esc(m.fix)}</dd></dl>` +
     `<p class="src">参考: ${m.src.map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(t)}</a>`).join("<br>")}</p>` : "";
+  const fl = m && M.def.falls && FALLS[m.fall];
+  if (fl) $("mistake-card").innerHTML += `<dl class="fall"><dt>この間違いで起きやすい転び方：${esc(fl.name)}</dt><dd>${esc(fl.what)}</dd><dt>けがを防ぐには</dt><dd>${esc(fl.safety)}</dd></dl>` +
+    `<p class="src">転び方の参考: ${fl.src.map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(t)}</a>`).join("<br>")}</p>`;
+  $("model-label").textContent = M.def.falls ? "お手本と並べて比べる（間違い→転倒／お手本）" : "お手本の姿勢を青で重ねる";
+  $("tag-a").textContent = m ? "間違い：" + m.name + (fl ? " → " + fl.name : "") : "";
   $("ph-mistake").hidden = !m;
-  $("ph-mistake").textContent = m ? "間違いの例：" + m.name + (opt.model ? "（青がお手本）" : "") : "";
+  $("ph-mistake").textContent = !m ? "" : M2 && opt.model ? "左：間違い（" + m.name + (fl ? " → " + fl.name : "") + "）／右：お手本" : "間違いの例：" + m.name + (opt.model ? "（青がお手本）" : "");
 }
 // 同じ瞬間・同じ板の状態で、正しい姿勢ならどうなるか
 function modelAt(s) {
@@ -201,15 +226,19 @@ function setView(v) {
   document.querySelectorAll("#views button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === v));
 }
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-const camPos = V(), camTgt = V();
-function updateCamera(st, res, dt) {
-  const vw = VIEWS[cam.view], s = st.s;
-  const refRaw = vw.frame === "travel" ? s.psi : vw.frame === "board" ? s.bpsi - Math.PI / 2 : 0;
-  if (cam.ref == null) cam.ref = refRaw;
-  cam.ref += wrap(refRaw - cam.ref) * (1 - Math.exp(-dt * (vw.frame === "board" ? 6 : 2.5)));
-  const k = 1 - Math.exp(-dt * 4);
+// カメラは2台（分割表示のときはお手本用も使う）。視点の種類・ドラッグの量は共通
+const cameraB = new THREE.PerspectiveCamera(42, 1, 0.05, 6000);
+const camA = { cam: camera, pos: V(), tgt: V(), ref: null }, camB = { cam: cameraB, pos: V(), tgt: V(), ref: null };
+function camStep(dt) {
+  const vw = VIEWS[cam.view], k = 1 - Math.exp(-dt * 4);
   cam.yaw += wrap(vw.yaw * D2R - cam.yaw * D2R) / D2R * k; cam.pitch += (vw.pitch - cam.pitch) * k; cam.dist += (vw.dist - cam.dist) * k;
-  const th = cam.ref + (cam.yaw + cam.dYaw) * D2R, pitch = Math.max(-5, Math.min(88, cam.pitch + cam.dPitch)) * D2R;
+}
+function updateCamera(C, st, res, dt) {
+  const vw = VIEWS[cam.view], s = st.s, camera = C.cam, camPos = C.pos, camTgt = C.tgt;
+  const refRaw = vw.frame === "travel" ? s.psi : vw.frame === "board" ? s.bpsi - Math.PI / 2 : 0;
+  if (C.ref == null) C.ref = refRaw;
+  C.ref += wrap(refRaw - C.ref) * (1 - Math.exp(-dt * (vw.frame === "board" ? 6 : 2.5)));
+  const th = C.ref + (cam.yaw + cam.dYaw) * D2R, pitch = Math.max(-5, Math.min(88, cam.pitch + cam.dPitch)) * D2R;
   const tgt = vw.target === "board" ? st.bp.clone().add(V(0, 0.15, 0)) : res.com.clone().lerp(st.bp, 0.25);
   world.slope.updateMatrixWorld();
   const tW = tgt.applyMatrix4(world.slope.matrixWorld);
@@ -220,6 +249,7 @@ function updateCamera(st, res, dt) {
   camPos.lerp(want, 1 - Math.exp(-dt * 8)); camTgt.copy(tW);
   camera.position.copy(camPos); camera.lookAt(camTgt);
   world.follow(tW);
+  return tW;
 }
 // ドラッグで回す・ピンチ/ホイールで寄る・ダブルクリックで戻す
 {
@@ -243,6 +273,7 @@ const opt = { model: true, mode: "wear", joints: false, forces: innerWidth > 900
   angles: false, ghosts: false, trail: true };
 function applyOpt() {
   rider.setMode(opt.mode, opt.joints || opt.mode === "skeleton");
+  riderB.setMode(opt.mode, opt.joints || opt.mode === "skeleton");
   forceGroup.visible = opt.forces; angGroup.visible = opt.angles; trail.mesh.visible = opt.trail;
   document.querySelectorAll("#modes button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.m === opt.mode));
   document.querySelectorAll("#toggles input").forEach((i) => { i.checked = !!opt[i.name]; });
@@ -319,21 +350,49 @@ function frame(now) {
     trail.upTo(Math.floor(T / (M.samples[1].t - M.samples[0].t)));
     spray.update(T);
     overlays(st, res);
-    updateCamera(st, res, dt);
-    renderer.render(scene, camera);
-    const model = M.mistake && opt.model ? modelAt(s) : null;
-    if (model) renderModel(model);
-    if (opt.ghosts) renderGhosts(T);
-    if (model || opt.ghosts) sceneAt(T, false);
+    camStep(dt);
+    const split = M2 && opt.model, r = canvas.parentElement.getBoundingClientRect(), W = r.width, H = r.height, vert = W < H * 0.9;
+    let model = null;
+    if (split) {
+      // 分割表示: 左（縦長の画面では上）に間違い→転倒、右（下）にお手本。同じ時間で並べる
+      const sB = sampleAt(M2.samples, Math.min(T, M2.dur)), stB = stateAt(sB);
+      model = riderB.pose(stB);
+      riderB.apply(model); boardB.group.position.copy(stB.bp); boardB.group.quaternion.copy(stB.bq); boardB.update(sB);
+      trailB.upTo(Math.floor(Math.min(T, M2.dur) / (M2.samples[1].t - M2.samples[0].t)));
+      const vA = vert ? [0, H / 2, W, H / 2] : [0, 0, W / 2, H], vB = vert ? [0, 0, W, H / 2] : [W / 2, 0, W / 2, H];
+      const pass = (a, C, sx, rx, vp) => {
+        rider.root.visible = board.group.visible = ov.visible = spray.points.visible = a; trail.mesh.visible = a && opt.trail;
+        riderB.root.visible = boardB.group.visible = !a; trailB.mesh.visible = !a && opt.trail;
+        C.cam.aspect = vp[2] / vp[3]; C.cam.updateProjectionMatrix();
+        updateCamera(C, sx, rx, dt);
+        renderer.setViewport(...vp); renderer.setScissor(...vp); renderer.render(scene, C.cam);
+      };
+      renderer.setScissorTest(true);
+      pass(true, camA, st, res, vA); pass(false, camB, stB, model, vB);
+      renderer.setScissorTest(false); renderer.setViewport(0, 0, W, H);
+      rider.root.visible = board.group.visible = ov.visible = spray.points.visible = true;
+      riderB.root.visible = boardB.group.visible = trailB.mesh.visible = false; trail.mesh.visible = opt.trail;
+    } else {
+      camera.aspect = W / Math.max(1, H); camera.updateProjectionMatrix();
+      updateCamera(camA, st, res, dt);
+      renderer.render(scene, camera);
+      model = M.mistake && opt.model ? modelAt(s) : null;
+      if (model) renderModel(model);
+      if (opt.ghosts) renderGhosts(T);
+      if (model || opt.ghosts) sceneAt(T, false);
+    }
+    const stage = document.querySelector(".stage");
+    stage.classList.toggle("split", !!split); stage.classList.toggle("split-v", !!split && vert);
+    $("split-tags").hidden = !split;
     soles.draw(res, s, st.air);
     if (frameN++ % 6 === 0) {
       $("stats").innerHTML = readouts(res, st, { ...extras(st), model }).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
       const pF = Math.round(res.foot.L.share * 100);
-      $("soles-note").textContent = st.air ? "空中（足裏の圧はゼロ）" : `前足 ${pF}%・後足 ${100 - pF}%`;
+      $("soles-note").textContent = s.fall > 0.5 ? "転倒中（足裏ではなく体で雪に当たる）" : st.air ? "空中（足裏の圧はゼロ）" : `前足 ${pF}%・後足 ${100 - pF}%`;
     }
     if (s.ph !== lastPh) {
       lastPh = s.ph;
-      const p = M.def.phases[s.ph] || { name: "", text: "" };
+      const p = M.phases[s.ph] || { name: "", text: "" };
       $("ph-name").textContent = p.name; $("ph-text").textContent = p.text; $("ph-sub").textContent = p.sub || ""; $("ph-sub").hidden = !p.sub;
     }
     $("seek").value = String(T / M.dur);
@@ -356,6 +415,7 @@ $("motion").addEventListener("change", (e) => loadMotion(e.target.value, $("mist
 $("mistake").innerHTML = `<option value="">なし（お手本の滑り）</option>` + MISTAKES.map((m) => `<option value="${m.id}">${m.name}</option>`).join("");
 $("mistake").addEventListener("change", (e) => loadMotion(M.def.id, e.target.value));
 $("model-toggle").addEventListener("change", (e) => { opt.model = e.target.checked; showMistake(); });
+addEventListener("resize", () => M && showMistake());
 $("views").innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button type="button" data-v="${k}">${v.label}</button>`).join("");
 $("views").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setView(b.dataset.v); });
 $("modes").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { opt.mode = b.dataset.m; applyOpt(); } });

@@ -33,10 +33,11 @@
         <p id="ph-sub" class="sub" hidden></p>
       </div>
       <figure class="soles">
-        <figcaption>足裏の圧 <small>上から透かして見た図。数字は母趾球・小趾球・かかと（体重の%）</small></figcaption>
+        <figcaption>足裏の圧 <small>上から透かして見た図。数字は母趾球・小趾球・かかと（体重の%）、白い点は3点の平均</small></figcaption>
         <canvas id="soles-cv"></canvas>
         <div class="soles-foot"><span id="soles-note"></span><span class="bar"><i id="soles-bar"></i><small>弱</small><small>強</small></span></div>
       </figure>
+      <div class="split-tags" id="split-tags" hidden><span class="tag-a" id="tag-a"></span><span class="tag-b">お手本（同じ時間）</span></div>
       <div class="views" id="views" role="group" aria-label="視点"></div>
     </section>
 
@@ -60,7 +61,7 @@
         <p id="motion-desc"></p>
         <div id="mistake-box" class="mistake" hidden>
           <label class="pick2"><span>よくある間違いと比べる</span><select id="mistake"></select></label>
-          <label class="chk"><input type="checkbox" id="model-toggle" checked />お手本の姿勢を青で重ねる</label>
+          <label class="chk"><input type="checkbox" id="model-toggle" checked /><span id="model-label">お手本の姿勢を青で重ねる</span></label>
           <div id="mistake-card" class="mistake-card"></div>
         </div>
         <p class="dim" id="setup-note"></p>
@@ -98,7 +99,8 @@
         <ul class="how">
           <li><b>赤い矢印</b>が雪から体を押す力。<b>重心（黄と黒の球）はいつもこの線の上</b>にある。線からずれると倒れる。</li>
           <li>カービングは「断面」の視点で「エッジ角と体の傾き」を出すと、板の角度と体の傾きの差（くの字）が見える。</li>
-          <li>足裏の図は自分の足元を上から見た向き（左がノーズ、上がつま先側）。オレンジの線は雪に当たっているエッジ、白い点は各足の圧の中心、オレンジの輪は板全体の圧の中心。</li>
+          <li>足裏の図は自分の足元を上から見た向き（左がノーズ、上がつま先側）。各足は母趾球・小趾球・かかとの3点で支えていて、それぞれの圧を色の山と数字（体重の%）で示す。白い点は3点の平均（圧の中心）で、2点で踏んでいるときはその間に来る（そこに圧があるわけではない）。オレンジの線は雪に当たっているエッジ、オレンジの輪は板全体の圧の中心。</li>
+          <li>前足と後足で踏み方が違う（トーション）。トゥサイドは前足が前足部だけで後足はかかとも残り、ヒールサイドは前足に前足部が残って後足はかかとだけ。板がフラットな切り替えでは両足とも3点。いぐっちゃん。が<a href="https://www.youtube.com/watch?v=G1b9U4J4iAo&t=268s" target="_blank" rel="noopener">足圧センサー（MOTION GRAVITY）を着けて滑った映像</a>の約1分半を読み取った傾向に合わせた（前後で違う踏み方の時間が約半分、両足かかとは約1割、前足部の中は母趾球が小趾球の約1.8倍）。1人の滑りなので、人や滑り方で変わる。板もそのぶん前足側がつま先側へねじれる。</li>
           <li>画面をドラッグで回転、ピンチ（ホイール）で拡大、ダブルクリックで視点を戻す。スペースキーで再生／停止、← → で1コマずつ。</li>
         </ul>
       </section>

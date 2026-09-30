@@ -104,3 +104,22 @@ svg { vertical-align: -3px; }
   .head h1 { font-size: 15px; }
   .time { display: none; }
 }
+
+/* 分割表示（間違い→転倒／お手本） */
+.stage.split::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; pointer-events: none; }
+.stage.split-v::after { left: 0; right: 0; top: 50%; bottom: auto; width: auto; height: 2px; margin: -1px 0 0; }
+.split-tags span { position: absolute; font-size: 12px; font-weight: 700; padding: 2px 8px; color: #fff; pointer-events: none; z-index: 2; }
+.split-tags .tag-a { display: none; }
+.split-tags .tag-b { background: #2f7dff; left: calc(50% + 10px); top: 12px; }
+.stage.split .soles { right: auto; left: 12px; top: auto; bottom: 52px; width: 250px; }
+.stage.split:not(.split-v) .phase { max-width: calc(50% - 24px); }
+.stage.split-v .split-tags .tag-a { right: auto; left: 8px; top: calc(50% - 26px); max-width: 90%; }
+.stage.split-v .split-tags .tag-b { left: 8px; top: calc(50% + 6px); }
+.stage.split-v .soles { left: auto; right: 8px; top: 8px; bottom: auto; }
+.mistake-card dl.fall { border-left-color: #8a1c14; background: #fbf0ef; padding: 4px 10px 6px; }
+/* スマホの上下分割: 上半分（転ぶ人）が隠れないよう、説明は場面名だけにして足裏の枠を小さく */
+.stage.split-v .phase { max-width: calc(100% - 150px); }
+.stage.split-v .phase p { display: none; }
+.stage.split-v .soles { width: 132px; padding: 3px 4px 4px; }
+.stage.split-v .soles canvas { height: 70px; }
+.stage.split-v .soles figcaption, .stage.split-v .soles-foot { font-size: 10px; }

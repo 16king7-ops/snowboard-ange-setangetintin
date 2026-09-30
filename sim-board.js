@@ -29,6 +29,9 @@ export function boardShape(spec, stance) {
   return { L, half, he, W, wc, R, hw, yAt, carveBend, sag, stance, thick: (x) => 0.005 + 0.007 * Math.max(0, 1 - (Math.abs(x) / half) ** 3) };
 }
 
+// ねじれの角度（rad）: 前足の位置で +tors°、後足の位置で −tors°、その間は直線、外側は一定
+export const twistAt = (sh, x, tors = 0) => (tors ? tors * D2R * Math.max(-1, Math.min(1, x / sh.stance.xF)) : 0);
+
 // 板のいちばん低い点が雪面（または空中の高さ）に来るように、中心の高さを求める
 const probe = [];
 for (let i = 0; i <= 24; i++) probe.push(-1 + i / 12);
@@ -107,7 +110,7 @@ export function createBoard(sh) {
     const b = new THREE.Mesh(g, bmat);
     b.castShadow = true;
     b.rotation.y = ang * D2R;
-    b.userData.x = x;
+    b.userData.x = x; b.userData.ang = ang * D2R;
     group.add(b);
     bindings.push(b);
   }
@@ -115,7 +118,9 @@ export function createBoard(sh) {
   function update(s) {
     for (let i = 0; i < n; i++) {
       const x = xs[i], y = sh.yAt(x, s.bend, s.press), w = sh.hw(x), t = sh.thick(x), o = i * 24;
-      const set = (k, px, py, pz) => { pos[o + k * 3] = px; pos[o + k * 3 + 1] = py; pos[o + k * 3 + 2] = pz; };
+      // ねじれ: 板の長さ方向の軸まわりに回す（前足の位置で +tors°）
+      const a = twistAt(sh, x, s.tors), ca = Math.cos(a), sa = Math.sin(a);
+      const set = (k, px, py, pz) => { pos[o + k * 3] = px; pos[o + k * 3 + 1] = py * ca - pz * sa; pos[o + k * 3 + 2] = py * sa + pz * ca; };
       set(0, x, y + t, w); set(1, x, y + t, -w);
       set(2, x, y, -w); set(3, x, y, w);
       set(4, x, y + t, w); set(5, x, y, w);
@@ -124,7 +129,11 @@ export function createBoard(sh) {
     geo.attributes.position.needsUpdate = true;
     geo.computeVertexNormals();
     geo.computeBoundingSphere();
-    for (const b of bindings) b.position.set(b.userData.x, sh.yAt(b.userData.x, s.bend, s.press) + sh.thick(b.userData.x), 0);
+    for (const b of bindings) {
+      const x = b.userData.x, a = twistAt(sh, x, s.tors), y = sh.yAt(x, s.bend, s.press) + sh.thick(x);
+      b.position.set(x, y * Math.cos(a), y * Math.sin(a));
+      b.rotation.set(a, b.userData.ang, 0, "XYZ");
+    }
   }
   update({ bend: 0, press: 0 });
   return { group, update, mats };

@@ -27,12 +27,13 @@
     <section class="stage" aria-label="3D表示">
       <canvas id="view"></canvas>
       <div class="phase" aria-live="polite">
+        <em id="ph-mistake" class="ph-mistake" hidden></em>
         <b id="ph-name"></b>
         <p id="ph-text"></p>
         <p id="ph-sub" class="sub" hidden></p>
       </div>
       <figure class="soles">
-        <figcaption>足裏の圧 <small>上から透かして見た図</small></figcaption>
+        <figcaption>足裏の圧 <small>上から透かして見た図。数字は母趾球・小趾球・かかと（体重の%）</small></figcaption>
         <canvas id="soles-cv"></canvas>
         <div class="soles-foot"><span id="soles-note"></span><span class="bar"><i id="soles-bar"></i><small>弱</small><small>強</small></span></div>
       </figure>
@@ -57,6 +58,11 @@
       <section>
         <h2>この動き</h2>
         <p id="motion-desc"></p>
+        <div id="mistake-box" class="mistake" hidden>
+          <label class="pick2"><span>よくある間違いと比べる</span><select id="mistake"></select></label>
+          <label class="chk"><input type="checkbox" id="model-toggle" checked />お手本の姿勢を青で重ねる</label>
+          <div id="mistake-card" class="mistake-card"></div>
+        </div>
         <p class="dim" id="setup-note"></p>
       </section>
 
@@ -103,6 +109,7 @@
           <li>動きは物理エンジンではなく、生体力学の目安（角度・荷重配分・タイミング）から作った再生。力は「体重 ×（加速度 − 重力）」で、ターンの向心加速度と重心の上下の加速度を含む。</li>
           <li>ターン半径はカービングで「サイドカット半径 × cos(エッジ角)」。荷重は重力の斜面方向の成分が効くので、フォールラインより後（山回り）で最大になる。</li>
           <li>角度や割合は中級者の目安で、個人差が大きい（とくに前後の荷重割合とタイミング）。</li>
+          <li>実際の滑りも参考にした: ラマ先生（平間和徳さん）の<a href="https://www.youtube.com/watch?v=IWHqjfA3LFk" target="_blank" rel="noopener">カービング</a>・<a href="https://www.youtube.com/watch?v=a1YswccyO18" target="_blank" rel="noopener">高速カービングとグラトリ</a>・<a href="https://www.youtube.com/watch?v=18WHJGBi_24" target="_blank" rel="noopener">ノーリー講座</a>、いぐっちゃん。の<a href="https://www.youtube.com/watch?v=HA81wqPt318" target="_blank" rel="noopener">滑走</a>と<a href="https://www.youtube.com/watch?v=G1b9U4J4iAo" target="_blank" rel="noopener">足圧センサーを着けたレッスン</a>。動画のコマから骨格を推定（MediaPipe）して関節の角度を測り、腕の位置・膝と股関節の深さ・足裏の圧の移り方・オーリーのタイミングを合わせた。</li>
         </ul>
       </section>
     </aside>

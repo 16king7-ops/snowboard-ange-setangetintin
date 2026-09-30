@@ -3,7 +3,7 @@ import * as THREE from "./vendor/three.module.min.js";
 import { V, D2R } from "./sim-geo.js";
 import { createRider } from "./sim-body.js";
 import { boardShape, boardLift, createBoard } from "./sim-board.js";
-import { MOTIONS, finalize, sampleAt } from "./sim-motion.js";
+import { MOTIONS, MISTAKES, finalize, sampleAt } from "./sim-motion.js";
 import { createWorld, createTrail, createSpray } from "./sim-world.js";
 import { createSoles, readouts, RAMP_CSS } from "./sim-hud.js";
 import { ACT_STOPS } from "./sim-muscles.js";
@@ -109,16 +109,25 @@ function stateAt(s) {
   const up = V(0, Math.cos(slopeA), -Math.sin(slopeA));
   const ly = (s.lookYaw || 0) * D2R, ld = (s.lookDown || 0) * D2R;
   const look = V(Math.sin(s.psi + ly), 0, Math.cos(s.psi + ly)).multiplyScalar(Math.cos(ld)).addScaledVector(up, -Math.sin(ld)).normalize();
-  return { s, bq, bp, sh, n, C: onBoard(s.cxb ?? s.cx), Cp: onBoard(s.cx), F, air, up, look, gv, acc };
+  // 手を雪に着く目標: 圧の中心から板の横方向にターンの内側へ約0.5m（前の手はノーズ寄り、後ろの手はテール寄り）
+  let hands = null;
+  if (s.touchL > 0.001 || s.touchR > 0.001) {
+    const Xb = Xax.clone().applyQuaternion(bq), Zb = Zax.clone().applyQuaternion(bq), inward = Zb.clone().multiplyScalar(Math.sign(s.edge) || 1).setY(0).normalize(), c = onBoard(s.cx);
+    const at = (dx) => c.clone().addScaledVector(inward, 0.5).addScaledVector(Xb.clone().setY(0).normalize(), dx).setY(0.05);
+    hands = { L: at(0.22), R: at(-0.15) };
+  }
+  return { s, bq, bp, sh, n, C: onBoard(s.cxb ?? s.cx), Cp: onBoard(s.cx), F, air, up, look, gv, acc, hands };
 }
 const comOff = (s) => rider.pose(stateAt({ ...s, air: 0, airborne: 0, ay: 0 })).com.y;
 
-function loadMotion(id) {
+function loadMotion(id, mid = "") {
   const def = MOTIONS.find((m) => m.id === id) || MOTIONS[0];
+  const mistake = def.mistakes ? MISTAKES.find((m) => m.id === mid) || null : null;
   slopeA = def.slope * D2R;
-  const raw = def.gen({ sh, comOff });
+  const raw = def.gen({ sh, comOff, mistake });
   M = finalize(raw, { comOff });
-  M.def = def;
+  M.def = def; M.mistake = mistake;
+  showMistake();
   world.setSlope(raw.slope);
   // 跡と雪煙
   const pts = [], src = [];
@@ -139,7 +148,39 @@ function loadMotion(id) {
   $("strip").innerHTML = runs.map((r) => `<button style="left:${(r.t0 / M.dur) * 100}%;width:${((r.t1 - r.t0) / M.dur) * 100}%;--h:${(r.ph * 47) % 360}" data-t="${r.t0}" title="${def.phases[r.ph]?.name ?? ""}"></button>`).join("");
   $("motion-desc").textContent = def.desc;
   T = 0; soles.reset(); lastPh = -1;
-  if (location.hash.slice(1) !== def.id) history.replaceState(null, "", "#" + def.id);
+  const h = def.id + (mistake ? "/" + mistake.id : "");
+  if (location.hash.slice(1) !== h) history.replaceState(null, "", "#" + h);
+}
+
+// ---------- よくある間違いとお手本 ----------
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[c]);
+function showMistake() {
+  const m = M.mistake;
+  $("mistake-box").hidden = !M.def.mistakes;
+  $("mistake").value = m ? m.id : "";
+  $("mistake-card").innerHTML = m ? `<dl><dt>見た目</dt><dd>${esc(m.look)}</dd><dt>何が起きるか</dt><dd>${esc(m.what)}</dd><dt>直し方</dt><dd>${esc(m.fix)}</dd></dl>` +
+    `<p class="src">参考: ${m.src.map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(t)}</a>`).join("<br>")}</p>` : "";
+  $("ph-mistake").hidden = !m;
+  $("ph-mistake").textContent = m ? "間違いの例：" + m.name + (opt.model ? "（青がお手本）" : "") : "";
+}
+// 同じ瞬間・同じ板の状態で、正しい姿勢ならどうなるか
+function modelAt(s) {
+  const g = { ...s };
+  M.def.pose(g, s.p, s.turn, Math.sin(Math.PI * s.p) ** 0.8, sh);
+  return rider.pose(stateAt(g));
+}
+// お手本は本人の体に隠れないよう手前に重ねる。部品の重なりでまだらにならないよう、先に奥行きだけ書いてから、いちばん手前の面だけを1回塗る
+const modelDepth = new THREE.MeshBasicMaterial({ colorWrite: false });
+const modelMat = new THREE.MeshBasicMaterial({ color: 0x2f7dff, transparent: true, opacity: 0.38, depthWrite: false, depthFunc: THREE.LessEqualDepth });
+function renderModel(res) {
+  const bg = scene.background, musc = rider.muscles.mesh.visible;
+  scene.background = null; rider.muscles.mesh.visible = false; board.group.visible = false;
+  renderer.autoClear = false; renderer.shadowMap.autoUpdate = false;
+  camera.layers.set(1); rider.apply(res, false); renderer.clearDepth();
+  scene.overrideMaterial = modelDepth; renderer.render(scene, camera);
+  scene.overrideMaterial = modelMat; renderer.render(scene, camera);
+  camera.layers.set(0); scene.overrideMaterial = null; renderer.autoClear = true; renderer.shadowMap.autoUpdate = true;
+  scene.background = bg; rider.muscles.mesh.visible = musc; board.group.visible = true;
 }
 
 // ---------- カメラ ----------
@@ -198,7 +239,7 @@ function updateCamera(st, res, dt) {
 
 // ---------- 画面の部品 ----------
 const soles = createSoles($("soles-cv"), sh, rider.k);
-const opt = { mode: "wear", joints: false, forces: innerWidth > 900, // スマホでは最初は矢印を出さない（体が見えにくいので）
+const opt = { model: true, mode: "wear", joints: false, forces: innerWidth > 900, // スマホでは最初は矢印を出さない（体が見えにくいので）
   angles: false, ghosts: false, trail: true };
 function applyOpt() {
   rider.setMode(opt.mode, opt.joints || opt.mode === "skeleton");
@@ -280,10 +321,13 @@ function frame(now) {
     overlays(st, res);
     updateCamera(st, res, dt);
     renderer.render(scene, camera);
-    if (opt.ghosts) { renderGhosts(T); sceneAt(T, false); }
+    const model = M.mistake && opt.model ? modelAt(s) : null;
+    if (model) renderModel(model);
+    if (opt.ghosts) renderGhosts(T);
+    if (model || opt.ghosts) sceneAt(T, false);
     soles.draw(res, s, st.air);
     if (frameN++ % 6 === 0) {
-      $("stats").innerHTML = readouts(res, st, extras(st)).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+      $("stats").innerHTML = readouts(res, st, { ...extras(st), model }).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
       const pF = Math.round(res.foot.L.share * 100);
       $("soles-note").textContent = st.air ? "空中（足裏の圧はゼロ）" : `前足 ${pF}%・後足 ${100 - pF}%`;
     }
@@ -308,7 +352,10 @@ new ResizeObserver(resize).observe(canvas.parentElement);
 
 // ---------- 操作 ----------
 $("motion").innerHTML = MOTIONS.map((m) => `<option value="${m.id}">${m.name}</option>`).join("");
-$("motion").addEventListener("change", (e) => loadMotion(e.target.value));
+$("motion").addEventListener("change", (e) => loadMotion(e.target.value, $("mistake").value));
+$("mistake").innerHTML = `<option value="">なし（お手本の滑り）</option>` + MISTAKES.map((m) => `<option value="${m.id}">${m.name}</option>`).join("");
+$("mistake").addEventListener("change", (e) => loadMotion(M.def.id, e.target.value));
+$("model-toggle").addEventListener("change", (e) => { opt.model = e.target.checked; showMistake(); });
 $("views").innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button type="button" data-v="${k}">${v.label}</button>`).join("");
 $("views").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setView(b.dataset.v); });
 $("modes").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { opt.mode = b.dataset.m; applyOpt(); } });
@@ -331,11 +378,11 @@ setView("high");
 applyOpt();
 setPlay(true);
 resize();
-const first = MOTIONS.find((m) => "#" + m.id === location.hash) ? location.hash.slice(1) : "carve";
+const [hId, hMis = ""] = location.hash.slice(1).split("/"), first = MOTIONS.find((m) => m.id === hId) ? hId : "carve";
 $("motion").value = first;
-loadMotion(first);
+loadMotion(first, hMis);
 requestAnimationFrame(frame);
-globalThis.__sim = { get T() { return T; }, set T(v) { T = v; }, get M() { return M; }, loadMotion, setView, opt, applyOpt, setPlay, rider, stateAt, sampleAt, renderer, scene, camera };
+globalThis.__sim = { get T() { return T; }, set T(v) { T = v; }, get M() { return M; }, loadMotion, modelAt, setView, opt, applyOpt, setPlay, rider, stateAt, sampleAt, renderer, scene, camera };
 
 // オフラインでも開けるように（セッティングの画面と同じサービスワーカー）
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});

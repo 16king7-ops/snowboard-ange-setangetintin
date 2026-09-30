@@ -12,7 +12,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 export const BASE = {
   ext: 0.9, lean: 12, twist: 10, pyaw: 0, roll: 0, sbend: 0, kneeDrive: 0.15, kneeIn: 0.1,
   aLf: 25, aLa: 30, aLe: 35, aRf: 18, aRa: 25, aRe: 35, lookYaw: 0, lookDown: 12,
-  cx: 0, cxb: null, cz: 0, edge: 0, pitch: 0, bend: 0, press: 0, tuck: 0, air: 0, spray: 0, trail: 0.02, carve: 0,
+  p: 0, touchL: 0, touchR: 0, cx: 0, cxb: null, cz: 0, edge: 0, pitch: 0, bend: 0, press: 0, tuck: 0, air: 0, spray: 0, trail: 0.02, carve: 0,
 };
 export const NUM_KEYS = Object.keys(BASE).filter((k) => k !== "cxb").concat(["t", "x", "z", "psi", "bpsi", "v", "ax", "ay", "az", "cxb"]);
 
@@ -36,15 +36,18 @@ const lead = (p, dir) => (-dir) * sstep(0.72, 1, p) + dir * (1 - sstep(0, 0.28, 
 // ---------- ターン（カービング / ずらし） ----------
 function turns(o) {
   return (ctx) => {
-    const { sh } = ctx, al = o.slope * D2R, H = o.H * D2R, out = [];
+    // 間違いの例（ctx.mistake）を選ぶと、姿勢を崩し、その結果としてエッジが立たずにずれる滑りにする
+    const m = ctx.mistake || null, carve = o.carve && !m, minT = m?.minT ?? o.minT, Rsk = m?.R ?? (o.R ? o.R * 1.15 : 9);
+    const skidAmt = m ? (m.skid ?? 18) + (o.carve ? 0 : 8) : o.skid;
+    const { sh } = ctx, al = o.slope * D2R, H = (o.H + (m?.dH || 0)) * D2R, out = [];
     let t = 0, x = 0, z = 0, psi = H * 0.95, dir = -1, p = 0.02, n = 0, v = o.v0, step = 0, at = 0;
     // 速さ: 重力の斜面方向の成分で加速し、雪の摩擦と空気抵抗で減速する。
     // 摩擦は「速すぎるときは板をずらして強める」（スピードの調整）として v0 の近くに保つ
     const cD = 0.004;
     while (n < o.count) {
       const env = Math.sin(Math.PI * p) ** 0.8;
-      const eMax = (dir < 0 ? o.edgeToe : o.edgeHeel) * D2R, th = eMax * env;
-      const kap = o.carve ? sstep(2 * D2R, 14 * D2R, th) / (sh.R * Math.cos(th)) : env ** 1.2 / o.R;
+      const eMax = (dir < 0 ? o.edgeToe : o.edgeHeel) * D2R * (m ? (dir < 0 ? m.edgeToe ?? m.edge : m.edgeHeel ?? m.edge) : 1), th = eMax * env;
+      const kap = carve ? sstep(2 * D2R, 14 * D2R, th) / (sh.R * Math.cos(th)) : env ** 1.2 / (m ? Rsk : o.R);
       const psiDot = dir * v * kap, span = 2 * H;
       const load = Math.hypot(v * psiDot, G * Math.cos(al)) / G, mu = clamp(o.mu + o.muGain * (v - o.v0), 0.02, 0.6);
       at = G * Math.sin(al) * Math.cos(psi) - mu * load * G - cD * v * v;
@@ -54,18 +57,21 @@ function turns(o) {
         s.az = at * Math.cos(psi) - v * psiDot * Math.sin(psi);
         s.ay = 0;
         s.edge = -dir * th;
-        const beta = o.carve ? 0 : o.skid * D2R * Math.sin(Math.PI * clamp((p - 0.12) / 0.88, 0, 1) ** 1.5);
+        const shape = m?.skidShape === "early" ? Math.sin(Math.PI * clamp(p / 0.75, 0, 1)) ** 1.2 : m?.skidShape === "late" ? Math.sin(Math.PI * clamp((p - 0.3) / 0.7, 0, 1)) ** 1.2 : Math.sin(Math.PI * clamp((p - 0.12) / 0.88, 0, 1) ** 1.5);
+        const beta = carve ? 0 : skidAmt * D2R * shape;
         s.bpsi = psi + dir * beta;
         o.pose(s, p, dir, env, sh);
-        s.bend = o.carve ? sh.carveBend(th) * 0.95 : 0;
-        s.carve = o.carve ? 1 : 0;
-        s.trail = o.carve ? 0.035 : 0.06 + sh.L * Math.sin(beta) * 0.75;
-        s.spray = o.carve ? clamp((v * v * kap / 9.81 - 0.6) * 0.8, 0, 1) * sstep(0.45, 0.8, p) : clamp(Math.sin(beta) * 2.2, 0, 1) * env;
+        if (m) m.pose(s, p, dir, sh);
+        s.p = p;
+        s.bend = carve ? sh.carveBend(th) * 0.95 : 0;
+        s.carve = carve ? 1 : 0;
+        s.trail = carve ? 0.035 : 0.06 + sh.L * Math.sin(beta) * 0.75;
+        s.spray = carve ? clamp((v * v * kap / 9.81 - 0.6) * 0.8, 0, 1) * sstep(0.45, 0.8, p) : clamp(Math.sin(beta) * 2.2, 0, 1) * env;
         s.turn = dir;
         s.ph = o.phase(p, dir);
         out.push(s);
       }
-      p += Math.max(Math.abs(psiDot) / span, 1 / o.minT) * DT;
+      p += Math.max(Math.abs(psiDot) / span, 1 / minT) * DT;
       psi += psiDot * DT;
       x += v * Math.sin(psi) * DT; z += v * Math.cos(psi) * DT;
       v = Math.max(1, v + at * DT);
@@ -101,17 +107,36 @@ const sidePhases = (list) => list.flatMap(([n, tx]) => [{ name: "トゥサイド
 // カービングの姿勢（Sonnet 5.5 と照合した目安: 膝 トゥ25〜40°/ヒール30〜45°、肩は進行方向へ トゥ+10〜25°/ヒール+20〜35°、前足荷重 50→60→55→45%）
 function carvePose(s, p, dir, env, sh) {
   const comp = Math.sin(Math.PI * clamp((p - 0.05) / 0.95, 0, 1) ** 1.25);
-  s.ext = lerp(0.95, dir < 0 ? 0.83 : 0.85, comp);
-  // トゥ側: 膝を深く曲げてすねを倒し、上半身は脚より起こす（くの字）。ヒール側: 腰から上を前へ折る
-  s.lean = sided(p, dir, 6, 22);
+  // 参考動画（いぐっちゃん・ラマ先生）: トゥ側は膝を深く曲げて上半身を立てる、ヒール側は股関節を深く折る
+  s.ext = lerp(0.95, dir < 0 ? 0.79 : 0.84, comp);
+  s.lean = sided(p, dir, 8, 30);
   s.twist = sided(p, dir, 14, 20) + 8 * lead(p, dir);
   s.kneeDrive = sided(p, dir, 0.9, 0.05);
   s.kneeIn = sided(p, dir, 0.25, 0.05);
-  s.aLf = sided(p, dir, 30, 34); s.aLa = sided(p, dir, 36, 34); s.aLe = 35;
-  s.aRf = sided(p, dir, 12, 28); s.aRa = sided(p, dir, 22, 20); s.aRe = sided(p, dir, 30, 40);
+  // 腕（ラマ先生・いぐっちゃんの滑りを参考）: 前の手は前方の低い位置、後ろの手は横〜後ろ。左右非対称
+  s.aLf = sided(p, dir, 32, 22); s.aLa = sided(p, dir, 26, 50); s.aLe = sided(p, dir, 32, 20);
+  s.aRf = sided(p, dir, 0, -14); s.aRa = sided(p, dir, 30, 40); s.aRe = sided(p, dir, 32, 25);
   s.lookYaw = 32 * ((dir) * (1 - sstep(0.7, 1, p)) + (-dir) * sstep(0.7, 1, p));
   s.lookDown = 8;
   s.cx = cxOf(sh, kf([[0, 0.5], [0.22, 0.61], [0.5, 0.55], [0.82, 0.44], [1, 0.5]], p));
+}
+
+// 上級のカービング（ラマ先生・いぐっちゃんの深いカービングを参考）: エッジ角70°前後、膝と股関節を深く曲げ、ターンの内側の手が雪に触れる
+function carveProPose(s, p, dir, env, sh) {
+  const comp = Math.sin(Math.PI * clamp((p - 0.04) / 0.96, 0, 1) ** 1.15);
+  s.ext = lerp(0.93, dir < 0 ? 0.6 : 0.58, comp);
+  s.lean = sided(p, dir, 14, 26);
+  s.twist = sided(p, dir, 10, 24) + 10 * lead(p, dir);
+  s.kneeDrive = sided(p, dir, 1.2, 0.1);
+  s.kneeIn = sided(p, dir, 0.3, 0.05);
+  s.aLf = sided(p, dir, 45, 25); s.aLa = sided(p, dir, 30, 55); s.aLe = 20;
+  s.aRf = sided(p, dir, -10, -20); s.aRa = sided(p, dir, 50, 40); s.aRe = 25;
+  // トゥ側は前の手（体の前）、ヒール側は後ろの手（体の後ろ）を雪に
+  const touch = Math.sin(Math.PI * clamp((p - 0.28) / 0.5, 0, 1)) ** 0.6;
+  s.touchL = dir < 0 ? touch : 0; s.touchR = dir > 0 ? touch : 0;
+  s.lookYaw = 40 * ((dir) * (1 - sstep(0.7, 1, p)) + (-dir) * sstep(0.7, 1, p));
+  s.lookDown = 14;
+  s.cx = cxOf(sh, kf([[0, 0.5], [0.22, 0.6], [0.5, 0.55], [0.82, 0.45], [1, 0.5]], p));
 }
 
 function slidePose(s, p, dir, env, sh) {
@@ -240,7 +265,10 @@ function ollieDef(nose, rot = 0) {
       pitch: [[0, 0], [1.44, 0], [1.55, sg * 7], [1.62, sg * 18]],
       press: [[0, 0], [1.4, 0], [1.5, sg * 5], [1.62, 0]],
       twist: [[0, 10], [0.95, 10], [1.35, wind], [1.62, rot ? Math.sign(rot) * 30 : 10]],
-      aLf: [[0, 25], [1.3, 20], [1.62, 45]], aRf: [[0, 18], [1.3, 10], [1.62, 38]], aLa: [[0, 30], [1.3, 22], [1.62, 28]], aRa: [[0, 25], [1.3, 18], [1.62, 25]],
+      // 腕（ラマ先生のノーリー講座を0.05秒ずつ見た流れ）: しゃがむとき両手を膝の近くへ下げ、伸び上がりで横へ振り上げ、空中は水平近くまで広げる
+      aLf: [[0, 25], [0.95, 25], [1.3, 50], [1.47, 45], [1.62, 20]], aRf: [[0, 18], [0.95, 18], [1.3, 45], [1.47, 40], [1.62, 15]],
+      aLa: [[0, 30], [0.95, 30], [1.3, 14], [1.47, 22], [1.62, 70]], aRa: [[0, 25], [0.95, 25], [1.3, 12], [1.47, 20], [1.62, 66]],
+      aLe: [[0, 35], [1.3, 20], [1.62, 25]], aRe: [[0, 35], [1.3, 20], [1.62, 25]],
       spray: [[0, 0], [1.5, 0], [1.6, 0.8], [1.63, 0]],
       trail: [[0, 0.16], [1.44, 0.16], [1.5, 0.08]],
       ph: rot ? [[0, 0], [0.95, 9], [1.44, nose ? 6 : 2], [1.55, 3]] : [[0, 0], [0.95, 1], [1.4, nose ? 6 : 2], [1.55, 3]],
@@ -249,12 +277,12 @@ function ollieDef(nose, rot = 0) {
       ext: [[0, 0.95], [0.12, 0.79], [0.22, 0.79], [0.34, 0.9]],
       pitch: [[0, sg * 18], [0.16, 0], [0.5, 0]], lean: [[0, 14], [0.2, 20], [0.45, 16]], tuck: [[0, 0], [0.12, 1], [0.35, 0.3]],
       frac: [[0, 0.5]], trail: [[0, 0]],
-      aLf: [[0, 45], [0.3, 40]], aRf: [[0, 38], [0.3, 32]], aLa: [[0, 28], [0.4, 38]], aRa: [[0, 25], [0.4, 32]],
+      aLf: [[0, 20], [0.3, 18]], aRf: [[0, 15], [0.3, 14]], aLa: [[0, 70], [0.4, 78]], aRa: [[0, 66], [0.4, 74]],
       ph: [[0, 4]],
     },
     post: {
       ext: [[0, 0.86], [0.17, 0.72], [0.65, 0.9]], lean: [[0, 16], [0.2, 22], [0.8, 12]], frac: [[0, 0.52], [0.6, 0.5]],
-      twist: [[0, 0], [0.8, rot ? -10 : 10]], aLf: [[0, 45], [0.8, 25]], aRf: [[0, 40], [0.8, 18]], aLa: [[0, 45], [0.8, 30]], aRa: [[0, 40], [0.8, 25]],
+      twist: [[0, 0], [0.8, rot ? -10 : 10]], aLf: [[0, 22], [0.3, 30], [0.8, 25]], aRf: [[0, 18], [0.3, 25], [0.8, 18]], aLa: [[0, 74], [0.3, 45], [0.8, 30]], aRa: [[0, 70], [0.3, 42], [0.8, 25]],
       spray: [[0, 1], [0.12, 0]], trail: [[0, 0.16]],
       ph: [[0, 5], [0.45, 0]],
     },
@@ -274,8 +302,8 @@ function pressDef(nose) {
       pitch: [[0, 0], [1.0, 0], [1.6, sg * 12], [2.5, sg * 13], [3.4, sg * 12], [4.0, 0]],
       ext: [[0, 0.9], [1.0, 0.9], [1.6, 0.87], [3.4, 0.87], [4.0, 0.9]],
       lean: [[0, 12], [1.0, 12], [1.6, nose ? 18 : 6], [3.4, nose ? 18 : 6], [4.0, 12]],
-      aLa: [[0, 30], [1.6, 40], [3.4, 40], [4.0, 30]], aRa: [[0, 25], [1.6, 36], [3.4, 36], [4.0, 25]],
-      aLf: [[0, 25], [1.6, 42], [3.4, 42], [4.0, 25]], aRf: [[0, 18], [1.6, 36], [3.4, 36], [4.0, 18]],
+      aLa: [[0, 30], [1.6, 64], [3.4, 64], [4.0, 30]], aRa: [[0, 25], [1.6, 58], [3.4, 58], [4.0, 25]],
+      aLf: [[0, 25], [1.6, 28], [3.4, 28], [4.0, 25]], aRf: [[0, 18], [1.6, 22], [3.4, 22], [4.0, 18]],
       twist: [[0, 10], [1.6, 15], [4, 10]],
       trail: [[0, 0.16]],
       ph: [[0, 0], [1.0, 7], [3.4, 8], [4.1, 0]],
@@ -295,10 +323,15 @@ export const MOTIONS = [
       { name: "かかと側に乗る", text: "ハイバックにふくらはぎを預け、かかと側のエッジを少し立てる。圧はかかとへ。つま先を少し引き上げる。" },
     ] },
   { id: "slide", slope: 12, name: "S字ターン（ずらし）", desc: "板を少しずらしてスピードを調整する、いちばん基本の連続ターン（約15km/h）。",
+    pose: slidePose, mistakes: true,
     gen: turns({ slope: 12, v0: 4.2, mu: 0.14, muGain: 0.12, H: 52, edgeToe: 20, edgeHeel: 16, R: 6.2, skid: 24, count: 5, minT: 3, carve: false, pose: slidePose, phase: phaseIndex([0, 0.12, 0.32, 0.62], 0.92) }),
     phases: sidePhases(S_PH) },
   { id: "carve", slope: 14, name: "カービング", desc: "板をずらさず、エッジで雪を切って曲がる（約23km/h）。ターン半径 = サイドカット半径 × cos(エッジ角)。",
+    pose: carvePose, mistakes: true,
     gen: turns({ slope: 14, v0: 6.2, mu: 0.04, muGain: 0.09, H: 66, edgeToe: 52, edgeHeel: 46, count: 5, minT: 3.5, carve: true, pose: carvePose, phase: phaseIndex([0, 0.12, 0.4, 0.6], 0.92) }),
+    phases: sidePhases(CARVE_PH) },
+  { id: "carvepro", slope: 16, name: "カービング（上級・手が雪に触れる）", desc: "エッジ角70°前後まで倒す深いカービング（約26km/h）。膝と股関節を深く曲げ、ターンの内側の手が雪に触れる。ラマ先生・いぐっちゃんの滑りを参考にした。",
+    gen: turns({ slope: 16, v0: 7.2, mu: 0.04, muGain: 0.09, H: 70, edgeToe: 70, edgeHeel: 66, count: 5, minT: 3.5, carve: true, pose: carveProPose, phase: phaseIndex([0, 0.12, 0.4, 0.6], 0.92) }),
     phases: sidePhases(CARVE_PH) },
   { id: "ollie", slope: 8, name: "オーリー", desc: "テールをたわませて、その反発で跳ぶ。", gen: ollieDef(false), phases: trPhases() },
   { id: "nollie", slope: 8, name: "ノーリー", desc: "ノーズをたわませて跳ぶ。オーリーの逆。", gen: ollieDef(true), phases: trPhases() },
@@ -332,3 +365,50 @@ export function sampleAt(S, t) {
   for (const k of NUM_KEYS) s[k] = a[k] + (b[k] - a[k]) * u;
   return s;
 }
+
+// ---------- よくある間違い（初心者） ----------
+// 参考: いぐっちゃん。のレッスン動画で初心者の滑りに付いた指摘（字幕）と、初心者の滑りの骨格推定（膝13〜30°・股関節2〜19°）。
+// pose は正しい姿勢のあとに上書きする崩し方。edge/skid/R/dH は結果として起きること（エッジが立たない・ずれる・ターンの形が変わる）。
+const YT = (id, t) => `https://www.youtube.com/watch?v=${id}&t=${t}s`;
+const SRC = {
+  back: [["いぐっちゃん。「ギャルに教わる…ターンがうまくいかない理由と直し方」10:24「前踏めなくなって、後ろ乗りになって」", YT("WzBmNKVNA6E", 624)]],
+  shoulder: [["同 1:36「肩開いてズレまくられる」／2:12「肩と腰は合わせた方がいい」／2:36「腰は横のままで肩が前」", YT("WzBmNKVNA6E", 96)]],
+  kick: [["同 7:00「板の向きがギュッって変わっちゃってる」／7:12「自分で板ズラしちゃってるから」", YT("WzBmNKVNA6E", 420)],
+    ["いぐっちゃん。「ズレズレのカービングをキレキレにする簡単な方法」2:20「一番ズレるやり方」", YT("B_h7I7Z9OUs", 140)]],
+  hips: [["いぐっちゃん。「ギャルに教わる…」9:36「頭がつま先側に出て、お尻がかかと側に出る」", YT("WzBmNKVNA6E", 576)],
+    ["いぐっちゃん。「ズレズレのカービングをキレキレにする簡単な方法」8:00「お尻が突っ張る」", YT("B_h7I7Z9OUs", 480)]],
+  stiff: [["いぐっちゃん。「ズレズレのカービングをキレキレにする簡単な方法」6:40「蹴り出さないし伸びきってる」／3:20「しゃがむと板の圧が抜ける」", YT("B_h7I7Z9OUs", 400)]],
+  eyes: [["いぐっちゃん。「初心者にカービングを教える」11:00「ターンの上の部分が足りない」／11:45「目線を進行方向に応じて送り続ける」", YT("G1b9U4J4iAo", 660)]],
+};
+export const MISTAKES = [
+  { id: "back", name: "後傾（後ろ足に乗る）", edge: 0.65, skid: 16, src: SRC.back,
+    look: "前足が突っ張り、腰が後ろ足の上に残る。前足：後足がおよそ3：7。",
+    what: "ノーズ（板の前）が雪をとらえないので、ターンの始めに板が曲がり始めない。テールだけで雪を押すので板がずれ、スピードの調整もしにくい。",
+    fix: "ターンの始めは前足に55〜65%。前足の膝を進行方向へ送り、ノーズに体重を預ける。",
+    pose(s, p, dir, sh) { s.cx = cxOf(sh, 0.3 + 0.05 * Math.sin(Math.PI * p)); s.lean -= 14; s.kneeDrive *= 0.3; s.aLf -= 10; s.aRf -= 15; s.aRa += 15; } },
+  { id: "shoulder", name: "上半身だけで回す（肩が開く）", edge: 0.7, skid: 18, src: SRC.shoulder,
+    look: "腰は横向きのまま、肩だけが先に大きく回る（体がねじれる）。",
+    what: "ねじれで脚に力が伝わらず、エッジが立たない。板は肩につられて回されて、ずれながら曲がる。",
+    fix: "肩と腰の向きをそろえる。次のターンへの先行動作は、体ごと少しだけ。",
+    pose(s, p, dir) { s.twist += dir * 34 * Math.sin(Math.PI * clamp(p / 0.7, 0, 1)); s.aLa += 15; s.aRa += 15; s.aLf += dir * 10; } },
+  { id: "kick", name: "後ろ足で板を回す（蹴り出してずらす）", edge: 0.55, skid: 30, skidShape: "early", src: SRC.kick,
+    look: "ターンの始めに後ろ足でテールを振り出し、板の向きが一気に変わる。",
+    what: "板が横を向いてブレーキになり、スピードが急に落ちたり止まったりする。エッジで曲がる感覚が身につかない。",
+    fix: "板の向きを足で回さず、エッジを立てて板のサイドカーブで曲がるのを待つ。ずらすのはターンの後半で少しだけ。",
+    pose(s, p, dir, sh) { s.pyaw += dir * 18 * Math.sin(Math.PI * clamp(p / 0.5, 0, 1)); s.cx = cxOf(sh, 0.42); s.kneeIn = 0; s.twist += dir * 12 * Math.sin(Math.PI * clamp(p / 0.5, 0, 1)); } },
+  { id: "hips", name: "お尻が突き出る（へっぴり腰）", edgeToe: 0.55, edgeHeel: 0.6, skid: 16, src: SRC.hips,
+    look: "腰から上だけを前に折り、お尻が後ろ（かかと側）へ出る。膝はあまり曲がらない。",
+    what: "膝と足首が使えないので板を傾けられない。ヒールサイドでは重心がエッジの内側へ入らず、エッジが外れてずれる。",
+    fix: "低くなるのは膝と足首から。上半身は脚と同じ向きに傾け、前傾は5〜25°に。",
+    pose(s, p, dir) { s.lean += dir < 0 ? 28 : 22; s.ext = Math.max(s.ext, 0.92); s.kneeDrive = 0; } },
+  { id: "stiff", name: "伸びきったまま（棒立ち）", edge: 0.6, skid: 14, src: SRC.stiff,
+    look: "膝の曲がりが20°前後のまま、曲げ伸ばしがない（初心者の滑りを骨格推定すると膝13〜30°、股関節2〜19°）。",
+    what: "雪から受ける力の変化を脚で吸収できず、板を押しつけられない。エッジ角が小さいままで、でこぼこで弾かれる。",
+    fix: "膝はいつも少し曲げておき、ターンの前半で曲げながら荷重、切り替えで伸びる（抜重）。",
+    pose(s, p) { s.ext = 0.975 - 0.01 * Math.sin(Math.PI * p); s.lean = 6; s.kneeDrive = 0.1; } },
+  { id: "eyes", name: "目線が足元（ターンが遅れる）", edge: 0.8, skid: 22, skidShape: "late", dH: 12, minT: 5, src: SRC.eyes,
+    look: "板や足元を見ていて、次に行く方向を見ていない。",
+    what: "上半身の先行が遅れ、ターンの始まり（上の部分）が足りない。最後に急に曲げるのでZ字になり、ずれて止まりがち。",
+    fix: "目線を進行方向に送り続け、ターンの出口を先に見る。",
+    pose(s, p, dir) { s.lookDown = 58; s.lookYaw = -dir * 12; s.twist -= 14 * lead(p, dir); } },
+];

@@ -63,17 +63,27 @@ export function createSoles(canvas, sh, k) {
       ctx.save(); path(insole(sd)); ctx.clip();
       // 圧の分布: かかとと母趾球が高い足の形 × 圧の中心のまわりの広がり × その足の荷重
       const load = air ? 0 : ft.load, uc = ft.u + BOOT_FWD, vc = ft.v;
-      const step = 0.0065;
+      const step = 0.0065, med = (x) => (sd === "L" ? x < 0 : x > 0), zone = [0, 0, 0];
       for (let z = -0.06; z <= 0.215; z += step) for (let x = -0.05; x <= 0.05; x += step) {
-        const base = 0.55 + 0.45 * Math.exp(-(((z + 0.03) / 0.035) ** 2)) + 0.5 * Math.exp(-(((z - 0.145) / 0.035) ** 2)) - 0.35 * Math.exp(-(((z - 0.06) / 0.04) ** 2)) * (sd === "L" ? (x < 0 ? 1 : 0.2) : (x > 0 ? 1 : 0.2));
-        const g = Math.exp(-(((z - uc) / 0.085) ** 2) - (((x - vc) / 0.05) ** 2));
+        // 足の形の重み: かかとと前足部が高く、土踏まずは低い。前足部は母趾球側が小趾球側のおよそ2倍（足圧センサーの実測: 431対185、488対210）
+        const base = 0.55 + 0.45 * Math.exp(-(((z + 0.03) / 0.035) ** 2)) + 0.5 * Math.exp(-(((z - 0.145) / 0.035) ** 2)) * (med(x) ? 1.5 : 0.7) - 0.35 * Math.exp(-(((z - 0.06) / 0.04) ** 2)) * (med(x) ? 1 : 0.2);
+        const g = Math.exp(-(((z - uc) / 0.065) ** 2) - (((x - vc) / 0.05) ** 2));
         const val = load * base * g * 0.9;
+        if (z > 0.09) zone[med(x) ? 0 : 1] += val; else if (z < 0.04) zone[2] += val;
         const [a, b] = P(...toBoard(sd, x, z));
         ctx.fillStyle = ramp(val); ctx.globalAlpha = 0.25 + 0.75 * Math.min(1, val * 3);
         ctx.fillRect(a - step * sc * 0.6, b - step * sc * 0.6, step * sc * 1.25, step * sc * 1.25);
       }
       ctx.restore(); ctx.globalAlpha = 1;
       path(insole(sd)); ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1; ctx.stroke();
+      // 母趾球・小趾球・かかとの割合（体重に対する%。圧力インソールのアプリの表示にならう）
+      if (!air && load > 0.02) {
+        const tot = zone[0] + zone[1] + zone[2] || 1, pct = zone.map((v) => Math.round((v / tot) * ft.share * 100));
+        ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#fff";
+        for (const [k, x, z] of [[0, sd === "L" ? -0.07 : 0.07, 0.15], [1, sd === "L" ? 0.07 : -0.07, 0.15], [2, 0, -0.1]]) {
+          const [tx, ty] = P(...toBoard(sd, x, z)); ctx.fillText(pct[k], tx, ty + 3);
+        }
+      }
       // 圧の中心と、直前の軌跡
       const [px, py] = P(...toBoard(sd, vc, uc));
       const tr = trail[sd]; tr.push([px, py]); if (tr.length > 40) tr.shift();
@@ -93,8 +103,11 @@ export function createSoles(canvas, sh, k) {
 // 数値の表示
 export function readouts(res, st, extra) {
   const f = (v, d = 0) => (Number.isFinite(v) ? (Math.abs(v) < 0.5 && d === 0 ? "0" : v.toFixed(d)) : "—");
-  const { ang, foot } = res, air = st.air;
+  const { ang, foot } = res, air = st.air, md = extra.model;
   const pF = Math.round(foot.L.share * 100), tF = Math.round(toeShare(foot.L.u + BOOT_FWD) * 100), tR = Math.round(toeShare(foot.R.u + BOOT_FWD) * 100);
+  // 間違いの例を見ているときは、お手本（同じ瞬間の正しい姿勢）の値を下に添える
+  const cmp = (v, fn) => (md ? `${v}<small class="model">お手本 ${fn(md)}</small>` : v);
+  const mP = (r) => Math.round(r.foot.L.share * 100);
   return [
     ["速さ", `${f(st.s.v * 3.6)} km/h`],
     ["雪から受ける力", air ? "0（空中）" : `体重の ${f(extra.G, 2)} 倍`],
@@ -102,12 +115,12 @@ export function readouts(res, st, extra) {
     ["エッジ角", `${f(Math.abs(st.s.edge) / D2R)}°${Math.abs(st.s.edge) > 1 * D2R ? (st.s.edge > 0 ? "（つま先側）" : "（かかと側）") : ""}`],
     ["体の傾き（内傾）", `${f(extra.incl)}°`],
     ["くの字（エッジ角と内傾の差）", `${f(Math.abs(st.s.edge) / D2R - extra.incl)}°`],
-    ["前足：後足", air ? "—" : `${pF} : ${100 - pF}`],
-    ["つま先の割合 前/後", air ? "—" : `${tF}% / ${tR}%`],
-    ["膝の曲がり 前/後", `${f(ang.kneeL)}° / ${f(ang.kneeR)}°`],
-    ["股関節の曲がり 前/後", `${f(ang.hipL)}° / ${f(ang.hipR)}°`],
-    ["足首の前傾 前/後", `${f(ang.ankleL)}° / ${f(ang.ankleR)}°`],
-    ["肩の向き（板に対して）", `${f(ang.twist)}°${ang.twist > 3 ? "（ノーズ側へ開く）" : ang.twist < -3 ? "（テール側へ閉じる）" : ""}`],
-    ["重心の高さ（板から）", `${f(ang.comH * 100)} cm`],
+    ["前足：後足", air ? "—" : cmp(`${pF} : ${100 - pF}`, (r) => `${mP(r)} : ${100 - mP(r)}`)],
+    ["つま先の割合 前/後", air ? "—" : cmp(`${tF}% / ${tR}%`, (r) => `${Math.round(toeShare(r.foot.L.u + BOOT_FWD) * 100)}% / ${Math.round(toeShare(r.foot.R.u + BOOT_FWD) * 100)}%`)],
+    ["膝の曲がり 前/後", cmp(`${f(ang.kneeL)}° / ${f(ang.kneeR)}°`, (r) => `${f(r.ang.kneeL)}° / ${f(r.ang.kneeR)}°`)],
+    ["股関節の曲がり 前/後", cmp(`${f(ang.hipL)}° / ${f(ang.hipR)}°`, (r) => `${f(r.ang.hipL)}° / ${f(r.ang.hipR)}°`)],
+    ["足首の前傾 前/後", cmp(`${f(ang.ankleL)}° / ${f(ang.ankleR)}°`, (r) => `${f(r.ang.ankleL)}° / ${f(r.ang.ankleR)}°`)],
+    ["肩の向き（板に対して）", cmp(`${f(ang.twist)}°${ang.twist > 3 ? "（ノーズ側へ開く）" : ang.twist < -3 ? "（テール側へ閉じる）" : ""}`, (r) => `${f(r.ang.twist)}°`)],
+    ["重心の高さ（板から）", cmp(`${f(ang.comH * 100)} cm`, (r) => `${f(r.ang.comH * 100)} cm`)],
   ];
 }

@@ -145,10 +145,22 @@ export function createRider({ heightCm = 173, massKg = 62 } = {}) {
     F.head = { p: ax(qn, 0, OFF.head.y * k, OFF.head.z * k).add(F.neck.p), q: qh };
     // 腕: [前に上げる, 横に開く, 肘]（度）
     for (const [side2, sx, arm] of [["L", 1, [s.aLf, s.aLa, s.aLe]], ["R", -1, [s.aRf, s.aRa, s.aRe]]]) {
-      const qa = qt.clone().multiply(rq(-arm[0], 0, sx * arm[1], "XZY"));
+      let qa = qt.clone().multiply(rq(-arm[0], 0, sx * arm[1], "XZY"));
       const sh = ax(qt, sx * OFF.shoulder.x * k, OFF.shoulder.y * k, OFF.shoulder.z * k).add(F.thorax.p);
+      let qf = qa.clone().multiply(rq(-arm[2], 0, 0));
+      // 手を雪に着く（深いカービング）: 肩から目標の点へ、脚と同じ2本の骨の逆運動学。肘は体の外・後ろへ逃がす
+      const w = s["touch" + side2] || 0, T = st.hands && st.hands[side2];
+      if (w > 0.001 && T) {
+        const L1 = OFF.uarm * k, L2 = (OFF.farm + 0.07) * k, d = T.clone().sub(sh), len = d.length(), u = d.clone().divideScalar(len);
+        const lc = clamp(len, 0.05, L1 + L2 - 1e-3), a = (L1 * L1 - L2 * L2 + lc * lc) / (2 * lc), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+        const pole = ax(qt, sx, 0, -0.6); pole.addScaledVector(u, -pole.dot(u)).normalize();
+        const E = sh.clone().addScaledVector(u, a).addScaledVector(pole, h), fa = T.clone().sub(E).normalize();
+        const qaI = basis(sh.clone().sub(E), fa.clone().addScaledVector(ax(qt, 0, 0, 1), 0.05));
+        const Xa = ax(qaI, 1, 0, 0), Yf = fa.clone().negate(), Zf = V().crossVectors(Xa, Yf).normalize(), Xf = V().crossVectors(Yf, Zf);
+        const qfI = new Q().setFromRotationMatrix(new THREE.Matrix4().makeBasis(Xf, Yf, Zf));
+        qa = qa.slerp(qaI, w); qf = qf.slerp(qfI, w);
+      }
       F["uarm" + side2] = { p: sh, q: qa };
-      const qf = qa.clone().multiply(rq(-arm[2], 0, 0));
       F["farm" + side2] = { p: ax(qa, 0, -OFF.uarm * k, 0).add(sh), q: qf };
       F["hand" + side2] = { p: ax(qf, 0, -OFF.farm * k, 0).add(F["farm" + side2].p), q: qf.clone().multiply(rq(-10, 0, 0)) };
     }
@@ -180,10 +192,10 @@ export function createRider({ heightCm = 173, massKg = 62 } = {}) {
     const share = { L: wF, R: 1 - wF };
     // 板の上の圧の中心 → 各足の中の圧の中心（ブーツの中心から、板に沿った向きでずらす）
     // 板の圧の中心がエッジにあっても、ブーツとバインディングがねじりを伝えるので、足の中の圧の中心は少し寄るだけ
-    // （目安: トゥ側で前足部に60〜75%、ヒール側でかかとに55〜70%）
+    // 目安は、いぐっちゃん。が足圧センサー（MOTION GRAVITY）を着けて滑った実測: トゥ側はかかとがほぼ0で前足部に約9割、ヒール側は前足部がほぼ0でかかとに約9割
     const hwC = st.sh.hw(cx), side = clamp(s.edge / (10 * D2R), -1, 1);
     const lean = Math.abs(side) > 0.01 ? side : clamp(s.cz / Math.max(0.01, hwC), -1, 1);
-    const dz = lean > 0 ? 0.032 * lean : 0.04 * lean;
+    const dz = lean > 0 ? 0.058 * lean : 0.085 * lean;
     const mid = (xF + xR) / 2, sN = clamp((cx - mid) / ((xF - xR) / 2), -1.6, 1.6);
     const act = {}, foot = {}, ang = {};
     for (const sd of ["L", "R"]) {

@@ -1,11 +1,11 @@
 // オフラインで開けるようにするサービスワーカー。
 // ファイルを更新して公開するときは VERSION を上げる（上げないと、次に開いたときまで古いファイルが出る）。
-const VERSION = "v20";
+const VERSION = "v21";
 const CACHE = "snowboard-" + VERSION;
 const FILES = [
   "./", "setup.html", "setup.css", "setup.js", "setup-data.js", "setup-content.js", "setup-diagrams.js", "setup-anim.js", "vendor/lucide.js", "vendor/qrcode.js",
   "index.html", "styles.css", "app.js", "lessons.js", "reference.js", "training.js",
-  "sim.html", "sim.css", "sim.js", "sim-geo.js", "sim-board.js", "sim-body.js", "sim-muscles.js", "sim-motion.js", "sim-world.js", "sim-hud.js",
+  "sim.html", "sim.css", "sim.js", "sim-geo.js", "sim-board.js", "sim-body.js", "sim-muscles.js", "sim-motion.js", "sim-world.js", "sim-hud.js", "sim-skin.js", "sim-trees.js",
   "vendor/three.module.min.js", "vendor/three.core.min.js",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
 ];

@@ -4,6 +4,7 @@
 import * as THREE from "./vendor/three.module.min.js";
 import * as G from "./sim-geo.js";
 import { createMuscles } from "./sim-muscles.js";
+import { createSkin, fabricNormal } from "./sim-skin.js";
 import { twistAt } from "./sim-board.js";
 
 const { V, D2R } = G;
@@ -47,7 +48,8 @@ export function createRider({ heightCm = 173, massKg = 62 } = {}) {
 
   // ---- 見た目 ----
   const boneMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, side: THREE.DoubleSide });
-  const layers = { skel: [], joint: [], cloth: [] };
+  // gear: 頭（顔・ヘルメット・ゴーグル・ネックウォーマー）と手袋 / boots: ブーツ / hair: 髪（肌のとき）
+  const layers = { skel: [], joint: [], cloth: [], gear: [], boots: [], hair: [] };
   const add = (b, geo, mat, layer) => { const m = new THREE.Mesh(geo, mat); m.castShadow = true; bone[b].add(m); layers[layer].push(m); return m; };
   add("pelvis", G.pelvisGeo(), boneMat, "skel");
   add("lumbar", G.lumbarGeo(), boneMat, "skel");
@@ -77,10 +79,24 @@ export function createRider({ heightCm = 173, massKg = 62 } = {}) {
     ["helmet", G.COL.helmet], ["lens", G.COL.lens, { metalness: 0.7, roughness: 0.15 }], ["strap", G.COL.strapG], ["skin", G.COL.skin], ["glove", G.COL.glove]]) {
     clothMats[name] = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.8, ...extra });
   }
+  // ジャケットとパンツは関節で曲がる服（sim-skin）にしたので、固い部品は装備（ブーツ・手袋・頭まわり）だけ使う
   for (const b of BONES) {
     const base = b.replace(/[LR]$/, ""), sx = b.endsWith("R") ? -1 : 1;
-    for (const [geo, mat] of G.clothGeo(base, sx)) add(b, geo, clothMats[mat], "cloth");
+    for (const [geo, mat] of G.clothGeo(base, sx)) {
+      if (mat === "jacket" || mat === "pants" || (base === "thorax" && mat === "jacket2")) continue;
+      add(b, geo, clothMats[mat], mat === "boot" || mat === "sole" ? "boots" : "gear");
+    }
   }
+  const hairGeo = new THREE.SphereGeometry(0.083, 20, 12, 0, Math.PI * 2, 0, 0.62 * Math.PI);
+  hairGeo.applyMatrix4(new THREE.Matrix4().compose(V(0, 0.062, 0.006), new Q().setFromEuler(new THREE.Euler(-0.35, 0, 0)), V(0.98, 1, 1.12)));
+  add("head", hairGeo, new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 0.85 }), "hair");
+  // 肌（関節で滑らかに曲がる）と服
+  const fab = fabricNormal();
+  const skin = createSkin(k, { color: 0xd9a988, roughness: 0.55 });
+  const jacket = createSkin(k, { cloth: "jacket", color: G.COL.jacket, roughness: 0.75 });
+  const pants = createSkin(k, { cloth: "pants", color: G.COL.pants, roughness: 0.88 });
+  for (const sk of [jacket, pants]) { sk.mat.normalMap = fab; sk.mat.normalScale.set(0.5, 0.5); }
+  root.add(skin.mesh, jacket.mesh, pants.mesh);
   const muscles = createMuscles(k);
   root.add(muscles.mesh);
 
@@ -291,6 +307,7 @@ export function createRider({ heightCm = 173, massKg = 62 } = {}) {
       patella[s].position.copy(PAT).multiplyScalar(k).applyQuaternion(tq).add(res.F["shank" + s].p);
     }
     if (withMuscles && muscles.mesh.visible) muscles.update(res.F, res.act);
+    for (const sk of [skin, jacket, pants]) if (sk.mesh.visible) sk.update(res.F);
   }
 
   // 立った姿勢で筋肉の基準の長さを測る
@@ -306,15 +323,21 @@ export function createRider({ heightCm = 173, massKg = 62 } = {}) {
   }
 
   // 表示の切り替え: mode = "wear" | "muscle" | "skeleton" | "xray"
+  // 表示の切り替え: wear=ウェア / skin=肌（裸） / clear=肌が透けて骨が見える / muscle=筋肉 / skeleton=骨格
   function setMode(mode, showJoints) {
-    const cloth = mode === "wear" || mode === "xray";
-    for (const m of layers.cloth) m.visible = cloth;
-    for (const m of layers.skel) m.visible = mode !== "wear";
-    muscles.mesh.visible = mode === "muscle" || mode === "xray";
+    const wear = mode === "wear", bare = mode === "skin" || mode === "clear";
+    jacket.mesh.visible = pants.mesh.visible = wear;
+    for (const m of layers.gear) m.visible = wear;
+    for (const m of layers.boots) m.visible = wear || bare;
+    skin.mesh.visible = bare;
+    for (const m of layers.hair) m.visible = bare;
+    for (const m of layers.skel) m.visible = !wear && mode !== "skin";
+    muscles.mesh.visible = mode === "muscle";
     for (const m of layers.joint) m.visible = showJoints;
-    for (const mat of Object.values(clothMats)) {
-      if (mat.transparent !== (mode === "xray")) mat.needsUpdate = true; // 透明の切り替えはシェーダーの作り直しが要る
-      mat.transparent = mode === "xray"; mat.opacity = mode === "xray" ? 0.22 : 1; mat.depthWrite = mode !== "xray";
+    const see = mode === "clear";
+    for (const mat of [skin.mat, clothMats.boot, clothMats.sole, layers.hair[0].material]) {
+      if (mat.transparent !== see) mat.needsUpdate = true; // 透明の切り替えはシェーダーの作り直しが要る
+      mat.transparent = see; mat.opacity = see ? (mat === skin.mat ? 0.28 : 0.3) : 1; mat.depthWrite = !see;
     }
   }
 

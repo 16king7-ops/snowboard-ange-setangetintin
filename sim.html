@@ -71,9 +71,10 @@
         <h2>表示</h2>
         <div class="seg" id="modes" role="group" aria-label="体の見せ方">
           <button type="button" data-m="wear">ウェア</button>
+          <button type="button" data-m="skin">肌</button>
+          <button type="button" data-m="clear">透ける</button>
           <button type="button" data-m="muscle">筋肉</button>
           <button type="button" data-m="skeleton">骨格</button>
-          <button type="button" data-m="xray">透視</button>
         </div>
         <div class="toggles" id="toggles">
           <label><input type="checkbox" name="forces" />重心と力の矢印</label>
@@ -81,6 +82,7 @@
           <label><input type="checkbox" name="joints" />関節</label>
           <label><input type="checkbox" name="ghosts" />残像（連続写真）</label>
           <label><input type="checkbox" name="trail" />滑った跡</label>
+          <label><input type="checkbox" name="labels" />文字（力・角度の名前）</label>
         </div>
         <div class="legend" id="legend" hidden>
           <span class="bar"><i id="legend-bar"></i></span>

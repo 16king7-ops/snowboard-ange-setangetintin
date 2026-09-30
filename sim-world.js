@@ -2,10 +2,12 @@
 // 斜面のものは slope グループ（x=横切る向き、y=斜面の法線、z=フォールライン下向き）に置き、グループを斜度ぶん傾ける。
 import * as THREE from "./vendor/three.module.min.js";
 import { V, D2R, merge, paint } from "./sim-geo.js";
+import { createTrees } from "./sim-trees.js";
 
 function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const PISTE = 26; // コースの半幅(m)
-export const groundY = (x) => { const a = Math.abs(x) - PISTE; return a > 0 ? a * a * 0.035 : 0; };
+// コースの外: 圧雪の端に小さな段（約0.8m）があり、その先の林は緩やかに上がる
+export const groundY = (x) => { const a = Math.abs(x) - PISTE; return a > 0 ? 0.8 * (1 - Math.exp(-a / 2.5)) + 0.1 * a : 0; };
 
 // 圧雪のコーデュロイ（フォールラインに沿った細い溝）と雪の粒の凹凸 → 法線マップ
 function snowTextures() {
@@ -79,7 +81,7 @@ export function createWorld(scene) {
   Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 1, far: 120 });
   sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
   scene.add(sun, sun.target);
-  scene.add(new THREE.HemisphereLight(0xcfe3ff, 0xf4f1ea, 1.1));
+  scene.add(new THREE.HemisphereLight(0xbcd6ff, 0xf4f1ea, 1.15));
 
   // 斜面
   const slope = new THREE.Group();
@@ -92,26 +94,41 @@ export function createWorld(scene) {
   geo.computeVertexNormals();
   tex.normal.repeat.set(W / 2, L / 2);
   tex.color.repeat.set(W / 40, L / 40);
-  const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xffffff, map: tex.color, normalMap: tex.normal, normalScale: new THREE.Vector2(0.55, 0.55), roughness: 0.82, metalness: 0 }));
+  // 雪の材質: 粒が日差しを跳ね返すきらめき、低い角度から見たときの照り返し、日陰の青み
+  const snowMat = new THREE.MeshStandardMaterial({ color: 0xf6f9ff, map: tex.color, normalMap: tex.normal, normalScale: new THREE.Vector2(0.55, 0.55), roughness: 0.78, metalness: 0 });
+  const snowU = { uSun: { value: V(-35, 60, 25).normalize() }, uUp: { value: V(0, 1, 0) } };
+  snowMat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, snowU);
+    sh.vertexShader = "varying vec3 vWPos;\n" + sh.vertexShader.replace("#include <project_vertex>", "#include <project_vertex>\n vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+    sh.fragmentShader = "varying vec3 vWPos;\nuniform vec3 uSun;\nuniform vec3 uUp;\n" + sh.fragmentShader.replace("#include <opaque_fragment>", `#include <opaque_fragment>
+      {
+        vec3 Vv = normalize(cameraPosition - vWPos);
+        float dist = length(cameraPosition - vWPos);
+        // きらめき: 約1.5cmの粒ごとに向きの違う小さな面。日差しを目の方へ跳ね返す粒だけが光る
+        vec3 cell = floor(vWPos * 50.0);
+        float h = fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+        vec3 fn = normalize(uUp * 1.3 + vec3(fract(h * 7.13) - 0.5, fract(h * 5.31) - 0.5, fract(h * 3.71) - 0.5));
+        float spark = pow(max(dot(fn, normalize(uSun + Vv)), 0.0), 700.0) * step(0.9, fract(h * 91.7));
+        gl_FragColor.rgb += vec3(1.0, 0.98, 0.94) * spark * 7.0 * smoothstep(45.0, 4.0, dist);
+        // 低い角度からの照り返し（雪面の光沢）と、日の当たらない所の青み
+        float fr = pow(1.0 - max(dot(uUp, Vv), 0.0), 5.0);
+        gl_FragColor.rgb += vec3(0.95, 0.97, 1.0) * fr * 0.22 * max(dot(uUp, uSun), 0.0);
+        float lum = dot(gl_FragColor.rgb, vec3(0.3, 0.59, 0.11));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(0.86, 0.93, 1.08), smoothstep(0.9, 0.45, lum));
+      }`);
+  };
+  const ground = new THREE.Mesh(geo, snowMat);
   ground.receiveShadow = true;
   slope.add(ground);
 
-  // コース脇の木とポール
-  const pine = pineGeo(), treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
-  const trees = new THREE.InstancedMesh(pine, treeMat, 520), m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
-  for (let i = 0; i < 520; i++) {
-    const sd = i % 2 ? 1 : -1, x = sd * (PISTE + 7 + r() * 55), z = -110 + r() * 780, s = 0.7 + r() * 0.8;
-    m4.compose(V(x, groundY(x) - 0.3, z), q.setFromAxisAngle(V(0, 1, 0), r() * 6), V(s, s * (0.9 + r() * 0.4), s));
-    trees.setMatrixAt(i, m4);
-  }
-  trees.castShadow = false;
-  slope.add(trees);
+  // コース脇の木（sim-trees.js）とポール
+  const trees = createTrees(slope, groundY, PISTE), m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
   const poleMat = new THREE.MeshStandardMaterial({ color: 0xe8612c, roughness: 0.6 });
   const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 6).translate(0, 0.8, 0), poleMat, 80);
   for (let i = 0; i < 80; i++) { const sd = i % 2 ? 1 : -1; poles.setMatrixAt(i, m4.compose(V(sd * (PISTE - 0.5), 0, -100 + (i >> 1) * 20), q.identity(), V(1, 1, 1))); }
   slope.add(poles);
 
-  function setSlope(deg) { slope.rotation.x = deg * D2R; }
+  function setSlope(deg) { slope.rotation.x = deg * D2R; trees.orient(deg * D2R); snowU.uUp.value.set(0, Math.cos(deg * D2R), -Math.sin(deg * D2R)); }
   // 太陽と影を見ている場所の近くへ
   function follow(worldPos) {
     sun.target.position.copy(worldPos);

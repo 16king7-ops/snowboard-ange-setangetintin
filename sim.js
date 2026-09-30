@@ -38,7 +38,7 @@ const canvas = $("view");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
@@ -61,13 +61,13 @@ function label() {
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   // 文字は視点の距離によらず画面上で同じ大きさ
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
-  sp.scale.set(0.2, 0.04, 1); sp.renderOrder = 20;
+  sp.scale.set(0.17, 0.034, 1); sp.renderOrder = 20;
   let last = "";
   sp.set = (text, color) => {
     if (text === last) return; last = text;
     const g = c.getContext("2d"); g.clearRect(0, 0, 320, 64); g.font = "bold 30px 'BIZ UDPGothic', sans-serif";
     const w = Math.min(316, g.measureText(text).width + 20);
-    g.fillStyle = "rgba(255,255,255,.88)"; g.fillRect((320 - w) / 2, 8, w, 48);
+    g.fillStyle = "rgba(255,255,255,.72)"; g.fillRect((320 - w) / 2, 8, w, 48);
     g.fillStyle = color; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, 160, 33);
     tex.needsUpdate = true;
   };
@@ -235,6 +235,7 @@ function camStep(dt) {
 }
 function updateCamera(C, st, res, dt) {
   const vw = VIEWS[cam.view], s = st.s, camera = C.cam, camPos = C.pos, camTgt = C.tgt;
+  if (cam.fix) { camera.position.set(...cam.fix[0]); camera.lookAt(...cam.fix[1]); world.follow(V(...cam.fix[1])); return; } // 確認用: カメラを固定
   const refRaw = vw.frame === "travel" ? s.psi : vw.frame === "board" ? s.bpsi - Math.PI / 2 : 0;
   if (C.ref == null) C.ref = refRaw;
   C.ref += wrap(refRaw - C.ref) * (1 - Math.exp(-dt * (vw.frame === "board" ? 6 : 2.5)));
@@ -269,7 +270,7 @@ function updateCamera(C, st, res, dt) {
 
 // ---------- 画面の部品 ----------
 const soles = createSoles($("soles-cv"), sh, rider.k);
-const opt = { model: true, mode: "wear", joints: false, forces: innerWidth > 900, // スマホでは最初は矢印を出さない（体が見えにくいので）
+const opt = { labels: true, model: true, mode: "wear", joints: false, forces: innerWidth > 900, // スマホでは最初は矢印を出さない（体が見えにくいので）
   angles: false, ghosts: false, trail: true };
 function applyOpt() {
   rider.setMode(opt.mode, opt.joints || opt.mode === "skeleton");
@@ -277,7 +278,7 @@ function applyOpt() {
   forceGroup.visible = opt.forces; angGroup.visible = opt.angles; trail.mesh.visible = opt.trail;
   document.querySelectorAll("#modes button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.m === opt.mode));
   document.querySelectorAll("#toggles input").forEach((i) => { i.checked = !!opt[i.name]; });
-  $("legend").hidden = !(opt.mode === "muscle" || opt.mode === "xray");
+  $("legend").hidden = opt.mode !== "muscle";
 }
 const ghostMat = new THREE.MeshBasicMaterial({ color: 0x7fb2ff, transparent: true, opacity: 0.2, depthWrite: false });
 
@@ -292,9 +293,11 @@ function sceneAt(t, withMuscles) {
 function overlays(st, res) {
   const { s } = st, com = res.com, g = st.F.length() / (M_KG * G);
   comBall.position.copy(com); copDot.position.copy(st.Cp); copDot.visible = !st.air;
+  // 文字（力・角度の名前）は体を隠すことがあるので、表示の設定で消せる
+  lCom.visible = lGrav.visible = lEdge.visible = lIncl.visible = opt.labels;
   lCom.position.copy(com).add(V(0, 0.16, 0)); lCom.set("重心", "#111");
   if (!st.air) {
-    aSnow.visible = lSnow.visible = forceLine.visible = true;
+    aSnow.visible = forceLine.visible = true; lSnow.visible = opt.labels;
     aSnow.position.copy(st.C); aSnow.setDirection(st.n); aSnow.setLength(Math.max(0.2, g * 0.55), 0.12, 0.07);
     lSnow.position.copy(st.C).addScaledVector(st.n, g * 0.55 + 0.12); lSnow.set(`雪が押す力 ${g.toFixed(2)}G`, "#c0301c");
     setLine(forceLine, [st.C, st.C.clone().addScaledVector(st.n, 1.7 * rider.k)]);
@@ -302,7 +305,7 @@ function overlays(st, res) {
   aGrav.position.copy(com); aGrav.setDirection(st.up.clone().negate()); aGrav.setLength(0.55, 0.12, 0.07);
   lGrav.position.copy(com).addScaledVector(st.up, -0.7); lGrav.set("重力 1G", "#1f55b0");
   const lat = V(s.ax, 0, s.az), la = lat.length() / G;
-  aInert.visible = lInert.visible = la > 0.08 && !st.air;
+  aInert.visible = la > 0.08 && !st.air; lInert.visible = aInert.visible && opt.labels;
   if (aInert.visible) { aInert.position.copy(com); aInert.setDirection(lat.clone().negate().normalize()); aInert.setLength(la * 0.55 + 0.05, 0.1, 0.06); lInert.position.copy(com).addScaledVector(lat.clone().normalize(), -(la * 0.55 + 0.25)); lInert.set(`遠心力 ${la.toFixed(2)}G`, "#b86e00"); }
   // 角度（進行方向の断面）
   if (opt.angles) {
@@ -442,7 +445,7 @@ const [hId, hMis = ""] = location.hash.slice(1).split("/"), first = MOTIONS.find
 $("motion").value = first;
 loadMotion(first, hMis);
 requestAnimationFrame(frame);
-globalThis.__sim = { get T() { return T; }, set T(v) { T = v; }, get M() { return M; }, loadMotion, modelAt, setView, opt, applyOpt, setPlay, rider, stateAt, sampleAt, renderer, scene, camera };
+globalThis.__sim = { get T() { return T; }, set T(v) { T = v; }, get M() { return M; }, cam, loadMotion, modelAt, setView, opt, applyOpt, setPlay, rider, stateAt, sampleAt, renderer, scene, camera };
 
 // オフラインでも開けるように（セッティングの画面と同じサービスワーカー）
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});

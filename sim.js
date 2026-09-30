@@ -173,7 +173,7 @@ function updateCamera(st, res, dt) {
   world.slope.updateMatrixWorld();
   const tW = tgt.applyMatrix4(world.slope.matrixWorld);
   const hd = V(Math.sin(th), 0, Math.cos(th)).applyQuaternion(world.slope.quaternion); hd.y = 0; hd.normalize();
-  const dist = cam.dist * cam.zoom * Math.max(1, 1.05 / camera.aspect); // 縦長の画面では少し引く
+  const dist = cam.dist * cam.zoom * Math.max(1, 0.85 / camera.aspect); // 縦長の画面では少し引く
   const want = tW.clone().addScaledVector(hd, Math.cos(pitch) * dist).add(V(0, Math.sin(pitch) * dist, 0));
   if (!camPos.lengthSq()) camPos.copy(want);
   camPos.lerp(want, 1 - Math.exp(-dt * 8)); camTgt.copy(tW);
@@ -198,7 +198,8 @@ function updateCamera(st, res, dt) {
 
 // ---------- 画面の部品 ----------
 const soles = createSoles($("soles-cv"), sh, rider.k);
-const opt = { mode: "wear", joints: false, forces: true, angles: false, ghosts: false, trail: true };
+const opt = { mode: "wear", joints: false, forces: innerWidth > 900, // スマホでは最初は矢印を出さない（体が見えにくいので）
+  angles: false, ghosts: false, trail: true };
 function applyOpt() {
   rider.setMode(opt.mode, opt.joints || opt.mode === "skeleton");
   forceGroup.visible = opt.forces; angGroup.visible = opt.angles; trail.mesh.visible = opt.trail;
